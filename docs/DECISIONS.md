@@ -943,3 +943,89 @@ stored — which also means a transcript produced later shows up without any boo
   running job, the available transcripts for a history row.
 - `LiveTranscriptWriter.formats(for:)` is the one place that decides, so the rule is testable
   without writing files.
+
+## ADR-026 — System audio is captured per **app**, and its level is shown separately
+
+**Status.** Accepted. Amends ADR-021's audio-source design.
+
+**Context.** The report was "AirPods on, YouTube playing in Chrome, but only the microphone is
+recorded". Measuring it with a probe that rebuilds the tap and aggregate exactly as the app
+does, and reports the RMS of each input buffer separately, turned up three separate things.
+Only the first explains that particular recording; the other two are worse.
+
+1. The saved `recordingSource` was `microphone`. The app recorded exactly what it was told,
+   and nothing anywhere on screen said system audio was being left out.
+2. **The app picker could not offer Chrome at all.** Core Audio reports *processes*; Chrome
+   plays through a renderer helper whose `NSRunningApplication` is `nil`, so the list showed
+   `com.google.Chrome.helper` and no entry called "Google Chrome". Worse, a tap installed on
+   Chrome's main process — the one a user would pick if it were offered — produced **nothing**:
+   over six seconds with audio playing the IOProc was not called once, while a tap on the
+   helper delivered the audio at full level (rms 0.131). `AudioHardwareCreateProcessTap`
+   returns `noErr` either way, so no error was raised and the recording "succeeded".
+3. **`SystemAudioCapture` never stored `onSamples`.** The field was declared, read in
+   `emitSamples` and cleared in `stop()`, but never assigned — `MicrophoneCapture` assigned
+   its copy. Live transcription therefore produced nothing at all whenever the source was
+   anything other than the microphone alone.
+4. **A tap whose processes produce nothing kills the whole recording**, not just the system
+   side. The aggregate then has no input stream, so the IOProc is never called — *including*
+   for the microphone sub-device — and the file comes out zero seconds long and is deleted as
+   too short by the existing length check. Measured: `duration written: 0.00 s`, zero level
+   reports, zero samples, and no error anywhere. This is what picking an app and then letting
+   its audio stop looks like.
+
+**Decision.**
+
+*The unit of selection is the app, not the process.* `AudioApplication` replaces the
+per-process entry. `AudioProcessList.group` collapses every audio-producing process under the
+app that owns it, found by walking the parent-pid chain until a process macOS considers an
+application. Chrome's helpers are therefore one entry called "Google Chrome".
+
+*The app's processes are resolved when recording starts, not when the picker was filled.*
+Renderer helpers come and go with the tabs, so the pids behind an entry are stale within
+seconds. `AudioProcessList.objectIDs(for:)` matches on the bundle id at tap time, which makes
+"Google Chrome" mean "whatever Chrome is playing through right now". The app's `id` is the
+bundle id rather than a pid, so the selection survives a refresh.
+
+*A tap with nothing behind it is refused up front.* Before the tap is created, at least one
+of the resolved processes must have an active output stream; otherwise `noAudioProcess` is
+raised, whose existing text — "The selected app isn't playing any audio right now", "Start the
+audio in the app and try again" — is exactly the advice needed. And because that guard only
+covers the cause we know about, `RecordingController` also watches for having received nothing
+at all: the ticker, not the level handler, has to be what notices, since the level handler is
+the thing not being called.
+
+*The two sources are metered apart.* `CaptureLevels` carries the combined level plus the
+microphone's and system audio's own contributions. The aggregate lays its input channels out as
+the sub-devices in list order followed by the taps — measured, not assumed — so the first
+`microphoneChannels` channels are the microphone and the rest are the tap. The recording sheet
+shows one meter per source when both are captured, and after five seconds of a tap delivering
+nothing it says so in words.
+
+**Why a separate meter rather than an error.** A silent tap is not a failure: the tap is
+installed, the device is running, the file is being written, and the microphone side is
+perfectly good. There is nothing to fail. What was missing was any way for the user to find
+out — and a single meter fed by the *sum* of a live microphone and a dead tap dances
+convincingly, which is why the problem survived to be reported from the transcript instead.
+
+**Unknown is not zero.** If the channel arithmetic doesn't add up, both halves are reported as
+`nil` and the warning stays away. Telling the user there is no system audio on the strength of
+a layout we failed to parse would be worse than saying nothing.
+
+**Why the default source stays `microphone`.** `.both` installs a tap, and a tap means a
+system permission prompt on first use. Making it the default would put that prompt in front of
+someone who only wanted to dictate a note. The fix for the original confusion is that the
+sheet now *shows* which sources are live, not that the default changed.
+
+**Consequences.**
+- `SystemAudioScope.processes` becomes `.apps`, and `AudioProcess` becomes
+  `AudioApplication` with `pids` rather than a single pid and object id.
+- `AudioCapturing.start` takes `onLevels: LevelHandler` instead of `onLevel: (Float) -> Void`.
+  Both capturers and the test fake report the breakdown; the microphone's is the level twice.
+- Live transcription works in System audio and Both mode for the first time.
+- The channel attribution is relied on only for the meters. The file is the sum of every input
+  channel either way, so a layout we read wrongly costs a meter, never the recording.
+- Picking an app whose audio has stopped is now refused at the start of the recording rather
+  than producing a zero-second file with no explanation.
+- `RecordingController.silenceGrace` is an instance property, not a constant, so the tests can
+  shorten it; waiting out the real five seconds twice added ten seconds to a suite that
+  otherwise runs in half a second.

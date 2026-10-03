@@ -34,28 +34,38 @@ enum AudioSource: String, Codable, CaseIterable, Identifiable, Sendable {
     var capturesMicrophone: Bool { self != .systemAudio }
 }
 
-/// A process playing audio.
+/// An app playing audio.
 ///
-/// Identified by its `AudioObjectID`: `CATapDescription.bundleIDs` only exists on macOS 26,
-/// and our target is 14.4.
-struct AudioProcess: Identifiable, Equatable, Sendable {
-    var objectID: AudioObjectID
-    var pid: pid_t
+/// The unit is the **app**, not the process, and that distinction is the whole point.
+/// Chrome plays through a renderer helper, not through the process the user thinks of as
+/// Chrome: the helper's `NSRunningApplication` is `nil`, so a per-process list offers
+/// "com.google.Chrome.helper" and never "Google Chrome" — and a tap installed on Chrome's
+/// main process delivers nothing at all (measured: the IOProc is never called once).
+/// Grouping by the owning app is what makes the picker mean what it says.
+///
+/// The pids are the ones found when the list was built. They are **not** what the tap is
+/// created from: helpers come and go, so `AudioProcessList.objectIDs(for:)` resolves the
+/// app's processes again at the moment recording starts.
+struct AudioApplication: Identifiable, Equatable, Sendable {
+    /// Every process of this app that was producing output when the list was built.
+    var pids: [pid_t]
     var bundleID: String?
     var name: String
 
-    var id: AudioObjectID { objectID }
+    /// Stable across refreshes, so the picker keeps its selection even though the helper
+    /// processes behind it change.
+    var id: String { bundleID ?? "pid:\(pids.first ?? 0)" }
 }
 
 /// Whose audio to take.
 enum SystemAudioScope: Equatable, Sendable {
     /// Everything except the app's own audio.
     case everything
-    /// Only the selected processes.
-    case processes([AudioProcess])
+    /// Only the selected apps.
+    case apps([AudioApplication])
 
-    var selected: [AudioProcess] {
-        if case .processes(let list) = self { return list }
+    var selected: [AudioApplication] {
+        if case .apps(let list) = self { return list }
         return []
     }
 }

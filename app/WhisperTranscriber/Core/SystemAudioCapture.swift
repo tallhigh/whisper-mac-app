@@ -29,9 +29,12 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
     private var file: AVAudioFile?
     private var framesWritten: AVAudioFramePosition = 0
     private var paused = false
-    private var levelHandler: (@Sendable (Float) -> Void)?
+    private var levelHandler: LevelHandler?
     private var sampleHandler: SampleHandler?
     private var lastLevelSentAt: CFAbsoluteTime = 0
+    /// How many of the aggregate's input channels belong to the microphone sub-device. The
+    /// taps come after them, which is what lets the two be metered apart.
+    private var microphoneChannels = 0
 
     private static let levelInterval: CFAbsoluteTime = 1.0 / 15.0
 
@@ -59,7 +62,7 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
 
     func start(
         writingTo url: URL,
-        onLevel: @escaping @Sendable (Float) -> Void,
+        onLevels: @escaping LevelHandler,
         onSamples: SampleHandler? = nil
     ) throws {
         guard let target = CaptureFormat.float32 else {
@@ -102,8 +105,14 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
             file = audioFile
             framesWritten = 0
             paused = false
-            levelHandler = onLevel
+            levelHandler = onLevels
+            // Without this, live transcription gets no samples at all whenever the source
+            // isn't the microphone alone — the handler was read and cleared but never stored.
+            sampleHandler = onSamples
             lastLevelSentAt = 0
+            microphoneChannels =
+                source.capturesMicrophone
+                ? Self.inputChannelCount(of: Self.defaultInputDevice()) : 0
         }
 
         // The block is created **after** setup: the converter, the file and the target format
@@ -151,6 +160,7 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
             tapID = AudioObjectID(kAudioObjectUnknown)
             aggregateID = AudioObjectID(kAudioObjectUnknown)
             ioProcID = nil
+            microphoneChannels = 0
             return Double(frames) / CaptureFormat.sampleRate
         }
     }
@@ -178,14 +188,18 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
             // An empty list + exclusive: "everything except what's listed".
             description.isExclusive = true
             description.processes = []
-        case .processes(let processes):
+        case .apps(let apps):
             description.isExclusive = false
-            // The ids change when a process restarts; we refresh them from the PID as the
-            // recording starts.
-            description.processes = processes.compactMap { process in
-                AudioProcessList.objectID(forPID: process.pid)
-            }
-            guard !description.processes.isEmpty else {
+            // Resolved here rather than when the picker was filled: a browser's audio moves
+            // between renderer helpers that come and go, so the pids behind "Google Chrome"
+            // are already stale by the time Record is pressed (ADR-026).
+            description.processes = apps.flatMap(AudioProcessList.objectIDs(for:))
+            // Empty, or present but producing nothing: both end the same way, with an
+            // aggregate that has no input at all and a recording of zero seconds. Refusing
+            // here turns a silent total failure into a sentence the user can act on.
+            guard !description.processes.isEmpty,
+                AudioProcessList.isAnyProducingOutput(description.processes)
+            else {
                 throw CaptureError.noAudioProcess
             }
         }
@@ -272,6 +286,13 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
     /// them all and clamping is what makes both sides audible. Summing is preferred over
     /// averaging: we don't want our own voice halved when the other side goes quiet. Clipping
     /// is rare in practice — the two don't peak at the same moment.
+    ///
+    /// The same pass also measures the two origins **separately**, for the meters. The
+    /// aggregate lays its input channels out as the sub-devices in list order followed by the
+    /// taps — measured, not assumed — so the first `microphoneChannels` channels are the
+    /// microphone and the rest are the tap. If the arithmetic doesn't add up, the breakdown is
+    /// reported as unknown rather than as zero: claiming "no system audio" on the strength of a
+    /// layout we failed to parse would be worse than saying nothing (ADR-026).
     private func handle(
         _ inputData: UnsafePointer<AudioBufferList>,
         converter: AVAudioConverter,
@@ -289,19 +310,31 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
         let frames = Int(first.mDataByteSize) / MemoryLayout<Float>.size / channelsInFirst
         guard frames > 0 else { return }
 
+        let micChannels = lock.withLock { microphoneChannels }
         var mixed = [Float](repeating: 0, count: frames)
+        var origin = CaptureOriginEnergy()
+        var channelOffset = 0
+
+        // Channel-major, so the microphone/tap decision is made once per channel rather than
+        // once per sample on a real-time thread.
         for buffer in buffers {
             guard let data = buffer.mData else { continue }
             let channels = max(Int(buffer.mNumberChannels), 1)
             let available = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size
             let samples = data.assumingMemoryBound(to: Float.self)
-            for frame in 0..<frames {
-                for channel in 0..<channels {
+            for channel in 0..<channels {
+                let isMicrophone = (channelOffset + channel) < micChannels
+                var energy: Double = 0
+                for frame in 0..<frames {
                     let index = frame * channels + channel
                     guard index < available else { break }
-                    mixed[frame] += samples[index]
+                    let value = samples[index]
+                    mixed[frame] += value
+                    energy += Double(value) * Double(value)
                 }
+                origin.add(energy, frames: frames, microphone: isMicrophone)
             }
+            channelOffset += channels
         }
         for index in mixed.indices {
             mixed[index] = min(max(mixed[index], -1), 1)
@@ -340,7 +373,7 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
         let level = CaptureLevel.rms(of: output)
         lock.withLock { framesWritten += AVAudioFramePosition(output.frameLength) }
         emitSamples(from: output, level: level)
-        publish(level)
+        publish(origin.levels(combined: level, expectingMicrophone: micChannels > 0))
     }
 
     /// Hands the samples to live transcription. Called from the audio thread; with no
@@ -351,15 +384,15 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
         handler(samples(from: buffer), level)
     }
 
-    private func publish(_ level: Float) {
-        let handler: (@Sendable (Float) -> Void)? = lock.withLock {
+    private func publish(_ levels: CaptureLevels) {
+        let handler: LevelHandler? = lock.withLock {
             let now = CFAbsoluteTimeGetCurrent()
             guard now - lastLevelSentAt >= Self.levelInterval else { return nil }
             lastLevelSentAt = now
             return levelHandler
         }
         guard let handler else { return }
-        Task { @MainActor in handler(level) }
+        Task { @MainActor in handler(levels) }
     }
 
     // MARK: - Core Audio helpers
@@ -402,22 +435,59 @@ final class SystemAudioCapture: AudioCapturing, @unchecked Sendable {
         deviceUID(for: kAudioHardwarePropertyDefaultInputDevice)
     }
 
+    private static func defaultInputDevice() -> AudioObjectID {
+        device(for: kAudioHardwarePropertyDefaultInputDevice)
+    }
+
+    /// How many input channels a device has, across all of its input streams.
+    ///
+    /// This is the microphone's share of the aggregate's input layout, and it is read from the
+    /// **device** rather than from the aggregate: the device's own count is unambiguous, while
+    /// picking it out of the aggregate would mean guessing which of its streams is which.
+    private static func inputChannelCount(of device: AudioObjectID) -> Int {
+        guard device != AudioObjectID(kAudioObjectUnknown) else { return 0 }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreamConfiguration,
+            mScope: kAudioObjectPropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size) == noErr, size > 0
+        else {
+            return 0
+        }
+        let raw = UnsafeMutableRawPointer.allocate(
+            byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { raw.deallocate() }
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, raw) == noErr else {
+            return 0
+        }
+        let list = UnsafeMutableAudioBufferListPointer(
+            raw.assumingMemoryBound(to: AudioBufferList.self))
+        return list.reduce(0) { $0 + Int($1.mNumberChannels) }
+    }
+
     private static func deviceUID(for selector: AudioObjectPropertySelector) -> String? {
+        let id = device(for: selector)
+        guard id != AudioObjectID(kAudioObjectUnknown) else { return nil }
+        return string(id, kAudioDevicePropertyDeviceUID)
+    }
+
+    private static func device(for selector: AudioObjectPropertySelector) -> AudioObjectID {
         var address = AudioObjectPropertyAddress(
             mSelector: selector,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        var device = AudioObjectID(kAudioObjectUnknown)
+        var id = AudioObjectID(kAudioObjectUnknown)
         var size = UInt32(MemoryLayout<AudioObjectID>.size)
         guard
             AudioObjectGetPropertyData(
-                AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device) == noErr,
-            device != AudioObjectID(kAudioObjectUnknown)
+                AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &id) == noErr
         else {
-            return nil
+            return AudioObjectID(kAudioObjectUnknown)
         }
-        return string(device, kAudioDevicePropertyDeviceUID)
+        return id
     }
 
     private static func string(

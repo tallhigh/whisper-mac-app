@@ -119,8 +119,11 @@ struct CaptureFormatTests {
 @MainActor
 struct RecordingControllerTests {
 
-    private func controller(_ capture: FakeCapture) -> RecordingController {
-        RecordingController(makeCapture: { _, _ in capture }, log: { _ in })
+    private func controller(_ capture: FakeCapture, grace: TimeInterval = 5)
+        -> RecordingController
+    {
+        RecordingController(
+            makeCapture: { _, _ in capture }, silenceGrace: grace, log: { _ in })
     }
 
     private var directory: URL {
@@ -243,12 +246,140 @@ struct RecordingControllerTests {
             log: { _ in }
         )
 
-        let process = AudioProcess(objectID: 7, pid: 42, bundleID: "us.zoom.xos", name: "Zoom")
-        await state.start(source: .both, scope: .processes([process]), in: directory)
+        let app = AudioApplication(pids: [42], bundleID: "us.zoom.xos", name: "Zoom")
+        await state.start(source: .both, scope: .apps([app]), in: directory)
 
         let value = seen.get()
         #expect(value?.0 == .both)
-        #expect(value?.1 == .processes([process]))
+        #expect(value?.1 == .apps([app]))
+    }
+
+    // MARK: - The system-audio silence watch (ADR-026)
+
+    /// The case this exists for: the microphone is loud, the tap is dead, and a single meter
+    /// fed by the sum looks perfectly healthy.
+    @Test("System audio staying silent is reported, without failing the recording")
+    func noticesASilentTap() async {
+        let capture = FakeCapture(duration: 3)
+        let state = controller(capture)
+        let start = Date()
+
+        await state.start(source: .both, in: directory, now: start)
+        let loudMicrophoneOnly = CaptureLevels(combined: 0.6, microphone: 0.6, system: 0)
+
+        state.apply(loudMicrophoneOnly, now: start.addingTimeInterval(1))
+        #expect(!state.systemAudioSilent, "a second's silence is not evidence of anything")
+
+        state.apply(
+            loudMicrophoneOnly,
+            now: start.addingTimeInterval(state.silenceGrace + 1))
+        #expect(state.systemAudioSilent)
+        #expect(state.state == .recording, "the recording carries on; the microphone is real")
+        #expect(state.failure == nil)
+    }
+
+    @Test("System audio arriving clears the warning")
+    func systemAudioClearsTheWarning() async {
+        let capture = FakeCapture(duration: 3)
+        let state = controller(capture)
+        let start = Date()
+
+        await state.start(source: .both, in: directory, now: start)
+        let late = start.addingTimeInterval(state.silenceGrace + 1)
+        state.apply(CaptureLevels(combined: 0.6, microphone: 0.6, system: 0), now: late)
+        #expect(state.systemAudioSilent)
+
+        state.apply(CaptureLevels(combined: 0.6, microphone: 0.5, system: 0.3), now: late)
+        #expect(!state.systemAudioSilent)
+    }
+
+    /// With the microphone alone there is no tap to be silent about.
+    @Test("The warning never appears when system audio was not asked for")
+    func staysQuietForMicrophoneOnly() async {
+        let capture = FakeCapture(duration: 3)
+        let state = controller(capture)
+        let start = Date()
+
+        await state.start(source: .microphone, in: directory, now: start)
+        state.apply(
+            CaptureLevels.microphoneOnly(0.6),
+            now: start.addingTimeInterval(state.silenceGrace + 10))
+
+        #expect(!state.systemAudioSilent)
+    }
+
+    /// An unattributable layout must not produce an accusation.
+    @Test("An unknown breakdown does not trigger the warning")
+    func unknownBreakdownStaysQuiet() async {
+        let capture = FakeCapture(duration: 3)
+        let state = controller(capture)
+        let start = Date()
+
+        await state.start(source: .both, in: directory, now: start)
+        state.apply(
+            CaptureLevels(combined: 0.6, microphone: nil, system: nil),
+            now: start.addingTimeInterval(state.silenceGrace + 10))
+
+        #expect(!state.systemAudioSilent)
+    }
+
+    @Test("Pausing and resuming restarts the silence clock")
+    func resumeResetsTheClock() async {
+        let capture = FakeCapture(duration: 3)
+        let state = controller(capture)
+        let start = Date()
+
+        await state.start(source: .both, in: directory, now: start)
+        state.apply(
+            CaptureLevels(combined: 0.6, microphone: 0.6, system: 0),
+            now: start.addingTimeInterval(state.silenceGrace + 1))
+        #expect(state.systemAudioSilent)
+
+        state.pause()
+        state.resume()
+        #expect(!state.systemAudioSilent)
+    }
+
+    /// The level the meter reads has to keep coming from the capture layer, breakdown or not.
+    @Test("The combined level reaches the meter")
+    func combinedLevelReachesTheMeter() async {
+        let capture = FakeCapture(duration: 3)
+        let state = controller(capture)
+
+        await state.start(in: directory)
+        capture.report(CaptureLevels.microphoneOnly(0.75))
+        await Task.yield()
+
+        #expect(state.level == 0.75)
+        #expect(state.levels.microphone == 0.75)
+    }
+
+    /// The failure with no error attached: the tap has no channels, the aggregate produces no
+    /// input stream, the IOProc is never called, and the file comes out zero seconds long.
+    @Test("A recording that receives nothing at all says so")
+    func noticesADeadAggregate() async throws {
+        let capture = FakeCapture(duration: 0)
+        let state = controller(capture, grace: 0.6)
+
+        await state.start(source: .both, in: directory)
+        #expect(!state.receivedNoAudio, "nothing is wrong in the first moment")
+
+        // The ticker is the only thing still running; the level handler is the thing that
+        // isn't being called, so it cannot be what reports this.
+        try await waitUntil { state.receivedNoAudio }
+        #expect(state.receivedNoAudio)
+    }
+
+    @Test("Audio arriving clears the no-audio warning")
+    func audioClearsTheDeadAggregateWarning() async throws {
+        let capture = FakeCapture(duration: 1)
+        let state = controller(capture, grace: 0.6)
+
+        await state.start(source: .both, in: directory)
+        try await waitUntil { state.receivedNoAudio }
+
+        state.apply(CaptureLevels(combined: 0.5, microphone: 0.5, system: 0.5))
+        #expect(!state.receivedNoAudio)
     }
 
     @Test("A second start while recording is ignored")
@@ -273,6 +404,7 @@ private final class FakeCapture: AudioCapturing, @unchecked Sendable {
     private var started = 0
     private var requested = 0
     private var pausedFlag = false
+    private var levels: LevelHandler?
 
     init(
         access: CaptureAccess = .granted,
@@ -299,10 +431,19 @@ private final class FakeCapture: AudioCapturing, @unchecked Sendable {
 
     func start(
         writingTo url: URL,
-        onLevel: @escaping @Sendable (Float) -> Void,
+        onLevels: @escaping LevelHandler,
         onSamples: SampleHandler?
     ) throws {
-        lock.withLock { started += 1 }
+        lock.withLock {
+            started += 1
+            levels = onLevels
+        }
+    }
+
+    /// Reports a level the way the real capturers do, so the controller's silence watch can be
+    /// exercised without any audio.
+    func report(_ value: CaptureLevels) {
+        lock.withLock { levels }?(value)
     }
 
     func pause() { lock.withLock { pausedFlag = true } }
@@ -315,6 +456,24 @@ private final class FakeCapture: AudioCapturing, @unchecked Sendable {
     }
 }
 
+
+
+/// Waits for a condition the controller's ticker will eventually make true.
+///
+/// The ticker runs on a 500 ms period and the grace period is counted in seconds, so the
+/// waits here are deliberately generous; a fixed sleep would either be flaky or slow.
+@MainActor
+private func waitUntil(
+    timeout: TimeInterval = 5,
+    _ condition: () -> Bool
+) async throws {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if condition() { return }
+        try await Task.sleep(for: .milliseconds(100))
+    }
+    Issue.record("the condition never became true within \(timeout) s")
+}
 
 /// For capturing a value from a `@Sendable` closure in the tests.
 private final class LockedValue<Value>: @unchecked Sendable {
@@ -343,9 +502,9 @@ struct AudioSourceTests {
 
     @Test("The scope gives the selected processes")
     func scopeSelection() {
-        let process = AudioProcess(objectID: 1, pid: 2, bundleID: "com.google.Chrome", name: "Chrome")
+        let app = AudioApplication(pids: [2], bundleID: "com.google.Chrome", name: "Chrome")
         #expect(SystemAudioScope.everything.selected.isEmpty)
-        #expect(SystemAudioScope.processes([process]).selected == [process])
+        #expect(SystemAudioScope.apps([app]).selected == [app])
     }
 
     @Test("The source preference survives the coding round trip")

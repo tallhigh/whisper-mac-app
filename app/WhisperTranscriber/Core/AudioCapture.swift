@@ -4,6 +4,73 @@ import Foundation
 /// The captured samples and that buffer's level.
 typealias SampleHandler = @Sendable ([Int16], Float) -> Void
 
+/// A buffer's level, broken down by where the audio came from.
+///
+/// One combined number is not enough to answer "is system audio arriving?", and that
+/// question is the whole reason this type exists: a tap can be installed, started and
+/// completely silent — a renderer helper that stopped playing, an app that was picked while
+/// it happened to be making a sound — and a single meter fed by the sum of a live microphone
+/// and a dead tap looks perfectly healthy (ADR-026).
+struct CaptureLevels: Equatable, Sendable {
+    /// Everything that was written to the file. This is what the main meter shows.
+    var combined: Float
+    /// The microphone's own contribution, or `nil` when the microphone isn't captured.
+    var microphone: Float?
+    /// System audio's own contribution, or `nil` when no tap is installed — or when the
+    /// channels couldn't be attributed, which is reported as "unknown" rather than as zero.
+    var system: Float?
+
+    /// Above this, audio is considered present. A silent tap delivers exact zeros, so the
+    /// threshold only has to clear the floor of the scaling in `CaptureLevel.rms`; it is set
+    /// well below anything audible.
+    static let presenceFloor: Float = 0.004
+
+    var hasSystemAudio: Bool { (system ?? 0) > Self.presenceFloor }
+
+    static func microphoneOnly(_ level: Float) -> CaptureLevels {
+        CaptureLevels(combined: level, microphone: level, system: nil)
+    }
+}
+
+/// Reports a buffer's levels for the UI.
+typealias LevelHandler = @Sendable (CaptureLevels) -> Void
+
+/// The energy of one buffer, kept apart by where it came from.
+///
+/// Scalars only: this is filled on the real-time audio thread, so it must not allocate.
+struct CaptureOriginEnergy {
+    var microphone: Double = 0
+    var system: Double = 0
+    var microphoneSamples = 0
+    var systemSamples = 0
+
+    mutating func add(_ energy: Double, frames: Int, microphone isMicrophone: Bool) {
+        if isMicrophone {
+            self.microphone += energy
+            microphoneSamples += frames
+        } else {
+            system += energy
+            systemSamples += frames
+        }
+    }
+
+    /// `expectingMicrophone` says whether a microphone was asked for at all; without one,
+    /// a mic level of `nil` is the truth rather than a failure to attribute.
+    func levels(combined: Float, expectingMicrophone: Bool) -> CaptureLevels {
+        // The microphone was wanted but no channel was attributed to it: the layout is not
+        // what we measured it to be, so neither half can be trusted.
+        guard !expectingMicrophone || microphoneSamples > 0 else {
+            return CaptureLevels(combined: combined, microphone: nil, system: nil)
+        }
+        return CaptureLevels(
+            combined: combined,
+            microphone: expectingMicrophone
+                ? CaptureLevel.scaled(microphone, over: microphoneSamples) : nil,
+            system: systemSamples > 0 ? CaptureLevel.scaled(system, over: systemSamples) : nil
+        )
+    }
+}
+
 /// The contract for audio capture.
 ///
 /// The interface and the state machine talk to this; the tests run against a fake
@@ -19,7 +86,7 @@ protocol AudioCapturing: Sendable {
 
     /// Starts capturing and writes the audio to `url`.
     ///
-    /// `onLevel` reports the audio level (0...1) for the UI a few times a second; it is
+    /// `onLevels` reports the audio levels (0...1) for the UI a few times a second; it is
     /// called from the main actor, **not** from the real-time audio thread.
     ///
     /// `onSamples` is called for every buffer, **from the audio thread**: 16 kHz mono
@@ -28,7 +95,7 @@ protocol AudioCapturing: Sendable {
     /// severe hallucination, measured).
     func start(
         writingTo url: URL,
-        onLevel: @escaping @Sendable (Float) -> Void,
+        onLevels: @escaping LevelHandler,
         onSamples: SampleHandler?
     ) throws
 
@@ -163,9 +230,18 @@ enum CaptureLevel {
             sum += sample * sample
         }
         let value = (sum / Float(buffer.frameLength)).squareRoot()
-        // Speech RMS is typically 0.02–0.2; we spread that across the visible range.
-        return min(value * 4, 1)
+        return scale(value)
     }
+
+    /// The same scaling for an energy total accumulated by hand, as the system capturer does
+    /// when it measures the microphone and the tap apart on the audio thread.
+    static func scaled(_ energy: Double, over samples: Int) -> Float {
+        guard samples > 0 else { return 0 }
+        return scale(Float((energy / Double(samples)).squareRoot()))
+    }
+
+    /// Speech RMS is typically 0.02–0.2; we spread that across the visible range.
+    private static func scale(_ rms: Float) -> Float { min(rms * 4, 1) }
 }
 
 extension AudioCapturing {

@@ -20,7 +20,7 @@ final class MicrophoneCapture: AudioCapturing, @unchecked Sendable {
     private var file: AVAudioFile?
     private var framesWritten: AVAudioFramePosition = 0
     private var paused = false
-    private var levelHandler: (@Sendable (Float) -> Void)?
+    private var levelHandler: LevelHandler?
     private var sampleHandler: SampleHandler?
     private var lastLevelSentAt: CFAbsoluteTime = 0
 
@@ -53,7 +53,7 @@ final class MicrophoneCapture: AudioCapturing, @unchecked Sendable {
 
     func start(
         writingTo url: URL,
-        onLevel: @escaping @Sendable (Float) -> Void,
+        onLevels: @escaping LevelHandler,
         onSamples: SampleHandler? = nil
     ) throws {
         guard access == .granted else { throw CaptureError.accessDenied }
@@ -87,7 +87,7 @@ final class MicrophoneCapture: AudioCapturing, @unchecked Sendable {
             self.file = audioFile
             self.framesWritten = 0
             self.paused = false
-            self.levelHandler = onLevel
+            self.levelHandler = onLevels
             self.sampleHandler = onSamples
             self.lastLevelSentAt = 0
         }
@@ -177,15 +177,17 @@ final class MicrophoneCapture: AudioCapturing, @unchecked Sendable {
         handler(samples(from: buffer), level)
     }
 
+    /// Everything here is the microphone, so the breakdown is the level twice over.
     private func publish(_ level: Float) {
-        let handler: (@Sendable (Float) -> Void)? = lock.withLock {
+        let handler: LevelHandler? = lock.withLock {
             let now = CFAbsoluteTimeGetCurrent()
             guard now - lastLevelSentAt >= Self.levelInterval else { return nil }
             lastLevelSentAt = now
             return levelHandler
         }
         guard let handler else { return }
-        Task { @MainActor in handler(level) }
+        let levels = CaptureLevels.microphoneOnly(level)
+        Task { @MainActor in handler(levels) }
     }
 
 }

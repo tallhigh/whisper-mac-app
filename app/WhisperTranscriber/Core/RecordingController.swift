@@ -15,6 +15,21 @@ final class RecordingController {
     private(set) var state: RecordingState = .idle
     /// 0...1 — the level meter.
     private(set) var level: Float = 0
+    /// The same level, broken down by origin, for the per-source meters.
+    private(set) var levels: CaptureLevels = CaptureLevels(combined: 0)
+    /// True when the recording is running but **no audio of any kind** has arrived.
+    ///
+    /// The one failure that has no error attached to it: an aggregate device whose tap has no
+    /// channels produces no input stream, so the IOProc is never called — not even for the
+    /// microphone — and the file ends up zero seconds long and is deleted as too short. The
+    /// guard in `SystemAudioCapture` catches the known cause; this catches the rest (ADR-026).
+    private(set) var receivedNoAudio = false
+    /// True when system audio is being captured but none has arrived for a while.
+    ///
+    /// Not an error — the recording is fine and the microphone is being written. It is a
+    /// statement of fact the user cannot otherwise get at: a tap can be installed, started and
+    /// completely silent, and the file would then hold one side of the conversation (ADR-026).
+    private(set) var systemAudioSilent = false
     /// The duration of audio written; paused time doesn't count.
     private(set) var duration: TimeInterval = 0
     /// The file the recording is written to; visible while recording too.
@@ -53,14 +68,29 @@ final class RecordingController {
     private var ticker: Task<Void, Never>?
     private var startedAt: Date?
     private var accumulated: TimeInterval = 0
+    private var expectsSystemAudio = false
+    private var systemAudioLastHeardAt: Date?
+    /// Whether the capture layer has reported anything at all since recording started.
+    private var hasReceivedAudio = false
+
+    /// How long audio may stay silent before the interface says so.
+    ///
+    /// Long enough to sit through a pause between sentences or a gap between tracks, short
+    /// enough that the user learns about it while the recording can still be restarted. An
+    /// instance property rather than a constant so the tests can shorten it — waiting out the
+    /// real five seconds twice would add ten seconds to a suite that otherwise runs in half a
+    /// second.
+    let silenceGrace: TimeInterval
 
     init(
         makeCapture: @escaping CaptureFactory = RecordingController.defaultCapture,
         engine: (any LiveTranscriptionEngine)? = nil,
+        silenceGrace: TimeInterval = 5,
         log: @escaping @Sendable (String) -> Void = { _ in }
     ) {
         self.makeCapture = makeCapture
         self.engine = engine
+        self.silenceGrace = silenceGrace
         self.log = log
     }
 
@@ -131,8 +161,8 @@ final class RecordingController {
         // need to hop back to the main actor.
         let session = self.session
         do {
-            try capture.start(writingTo: url) { [weak self] level in
-                Task { @MainActor in self?.level = level }
+            try capture.start(writingTo: url) { [weak self] levels in
+                Task { @MainActor in self?.apply(levels) }
             } onSamples: { samples, _ in
                 session?.send(samples: samples)
             }
@@ -148,9 +178,34 @@ final class RecordingController {
         accumulated = 0
         startedAt = now
         duration = 0
+        levels = CaptureLevels(combined: 0)
+        systemAudioSilent = false
+        receivedNoAudio = false
+        hasReceivedAudio = false
+        expectsSystemAudio = source.capturesSystemAudio
+        systemAudioLastHeardAt = now
         state = .recording
         log("recording started: \(url.lastPathComponent)")
         startTicker()
+    }
+
+    /// Takes a level report from the capture layer and keeps the silence watch up to date.
+    ///
+    /// Only a level we can actually attribute counts: when the breakdown is unknown, the watch
+    /// is left alone rather than being allowed to accuse a tap that may well be working.
+    func apply(_ levels: CaptureLevels, now: Date = Date()) {
+        self.levels = levels
+        level = levels.combined
+        hasReceivedAudio = true
+        receivedNoAudio = false
+        guard expectsSystemAudio, state == .recording else { return }
+
+        if levels.hasSystemAudio {
+            systemAudioLastHeardAt = now
+            systemAudioSilent = false
+        } else if levels.system != nil, let last = systemAudioLastHeardAt {
+            systemAudioSilent = now.timeIntervalSince(last) >= silenceGrace
+        }
     }
 
     // MARK: - Pause / resume
@@ -162,6 +217,7 @@ final class RecordingController {
         startedAt = nil
         state = .paused
         level = 0
+        levels = CaptureLevels(combined: 0)
         log("paused (\(Int(accumulated)) s)")
     }
 
@@ -170,6 +226,10 @@ final class RecordingController {
         capture.resume()
         startedAt = Date()
         state = .recording
+        // The clock restarts with the audio: a pause is not evidence of a silent tap.
+        systemAudioLastHeardAt = Date()
+        systemAudioSilent = false
+        receivedNoAudio = false
         log("resumed")
     }
 
@@ -204,6 +264,10 @@ final class RecordingController {
         let url = fileURL
         state = .idle
         level = 0
+        levels = CaptureLevels(combined: 0)
+        systemAudioSilent = false
+        receivedNoAudio = false
+        expectsSystemAudio = false
         duration = written
         startedAt = nil
         accumulated = 0
@@ -246,6 +310,10 @@ final class RecordingController {
         fileURL = nil
         state = .idle
         level = 0
+        levels = CaptureLevels(combined: 0)
+        systemAudioSilent = false
+        receivedNoAudio = false
+        expectsSystemAudio = false
         duration = 0
         startedAt = nil
         accumulated = 0
@@ -302,6 +370,10 @@ final class RecordingController {
                 guard let self else { return }
                 if state == .recording {
                     duration = accumulated + elapsedSinceStart()
+                    // Nothing has come back from the capture layer at all. The level handler
+                    // cannot report this, because it is the thing that isn't being called.
+                    receivedNoAudio =
+                        !hasReceivedAudio && duration >= silenceGrace
                 }
             }
         }

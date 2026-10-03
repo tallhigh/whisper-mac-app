@@ -156,8 +156,17 @@ The user picks one of three:
 | **Microphone + system audio** | both sides of the call | both on a single aggregate device |
 
 When system audio is selected, a second choice appears: **all system audio** or **a
-specific app** (Zoom, Chrome, Safari…). Because Meet runs in a browser, the browser
-process is the one to pick.
+specific app** (Zoom, Chrome, Safari…).
+
+The unit of that choice is the **app**, not the process, and the distinction is not cosmetic
+(ADR-026). Core Audio reports processes, and a browser does not play through the process the
+user thinks of as the browser: Chrome plays through a renderer helper, whose
+`NSRunningApplication` is `nil` and whose name is `com.google.Chrome.helper`. A tap installed
+on Chrome's *main* process delivers nothing at all — measured: with audio playing, the IOProc
+was not called once in six seconds — and `AudioHardwareCreateProcessTap` returns `noErr` while
+doing it. So `AudioProcessList` groups every audio-producing process under the app that owns
+it, found by walking the parent-pid chain, and resolves that app's processes again when
+recording starts, because the helpers come and go with the tabs.
 
 ### Why a Core Audio process tap rather than ScreenCaptureKit
 
@@ -183,7 +192,17 @@ attaching an `IOProc` — lower-level work than `AVAudioEngine`.
 
 When the microphone and system audio are both wanted, the two become sub-devices of **the
 same aggregate device**. That leaves clock drift to Core Audio's own rate converter;
-there's no need to align two separate streams by hand.
+there's no need to align two separate streams by hand. With AirPods this is a real
+conversion rather than a formality: the output runs at 48 kHz while the AirPods microphone
+runs at 24 kHz, so the aggregate adopts 24 kHz and the tap is resampled into it. Measured,
+the tap's level is the same either way (rms 0.351 inside the aggregate against 0.369 on its
+own), so nothing is lost by adding the microphone.
+
+The aggregate's input channels are laid out as the sub-devices in list order followed by the
+taps. The file is the sum of all of them, but they are also **metered apart**, which is the
+only way to answer "is system audio actually arriving?" — a tap can be installed, started and
+completely silent, and a single meter fed by the sum of a live microphone and a dead tap looks
+perfectly healthy (ADR-026).
 
 > `CATapDescription.bundleIDs` is macOS 26+ only, so process selection uses
 > `AudioObjectID` instead, which works on the 14.4 target.
@@ -366,9 +385,12 @@ entitlement change does require a new notarization round.
 - The recording sheet shows the selections at the top (name, source, app, live toggle,
   live model, folder), and below them the duration, the level meter, the live text and
   `[Pause]` `[Finish]`.
+- With both sources captured there are **two** meters, labelled Microphone and System audio,
+  and if no system audio arrives for five seconds the sheet says so in words. It is not an
+  error: the recording continues and the microphone side is written as normal.
 - If the source is "system audio" or "microphone + system audio", the app list appears;
-  "all system audio" is one of its options. The list is populated from the processes
-  actually producing audio, never hard-coded.
+  "all system audio" is one of its options. The list is populated from the apps actually
+  producing audio, never hard-coded.
 - Once recording starts, the source, the app and the model are locked.
 - The live text is shown in two styles: committed (primary) and provisional
   (secondary/faded).
@@ -377,8 +399,9 @@ entitlement change does require a new notarization round.
 - Closing the window does **not** stop the recording (consistent with the queue's
   behaviour); quitting asks for confirmation.
 
-Accessibility: the level meter reports a percentage through `accessibilityValue`, and the
-duration and state are read to VoiceOver as a single element.
+Accessibility: each level meter reports a percentage through `accessibilityValue` and is
+labelled with its source, and the duration and state are read to VoiceOver as a single
+element.
 
 ## Risks
 

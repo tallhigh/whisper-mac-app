@@ -7,8 +7,9 @@ import SwiftUI
 /// only audio is recorded and the text is produced afterwards, in the queue.
 struct RecordingView: View {
     @Environment(AppState.self) private var state
-    @State private var processes: [AudioProcess] = []
-    @State private var selectedPID: pid_t?
+    @State private var apps: [AudioApplication] = []
+    /// The app's `id`, not a pid: the processes behind it change between refreshes.
+    @State private var selectedAppID: String?
 
     var body: some View {
         @Bindable var state = state
@@ -36,7 +37,7 @@ struct RecordingView: View {
         .padding(24)
         .frame(width: 460)
         .task {
-            refreshProcesses()
+            refreshApps()
         }
     }
 
@@ -96,19 +97,19 @@ struct RecordingView: View {
 
             if state.recordingSource.capturesSystemAudio {
                 HStack(spacing: 8) {
-                    Picker("App", selection: $selectedPID) {
-                        Text("All system audio").tag(pid_t?.none)
-                        if !processes.isEmpty {
+                    Picker("App", selection: $selectedAppID) {
+                        Text("All system audio").tag(String?.none)
+                        if !apps.isEmpty {
                             Divider()
-                            ForEach(processes) { process in
-                                Text(process.name).tag(pid_t?.some(process.pid))
+                            ForEach(apps) { app in
+                                Text(app.name).tag(String?.some(app.id))
                             }
                         }
                     }
                     .disabled(state.recording.isRecording)
 
                     Button {
-                        refreshProcesses()
+                        refreshApps()
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -118,7 +119,7 @@ struct RecordingView: View {
                     .accessibilityLabel("Refresh the list")
                 }
 
-                if processes.isEmpty {
+                if apps.isEmpty {
                     Text("No app is playing audio. Start the audio in Zoom or a browser, then refresh.")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -126,9 +127,9 @@ struct RecordingView: View {
                 }
             }
         }
-        .onChange(of: selectedPID) { _, _ in applyScope() }
+        .onChange(of: selectedAppID) { _, _ in applyScope() }
         .onChange(of: state.recordingSource) { _, _ in
-            refreshProcesses()
+            refreshApps()
             applyScope()
         }
     }
@@ -144,20 +145,20 @@ struct RecordingView: View {
     }
 
     /// The list comes from Core Audio; the app names aren't hard-coded.
-    private func refreshProcesses() {
-        processes = AudioProcessList.playing()
-        if let selectedPID, !processes.contains(where: { $0.pid == selectedPID }) {
-            self.selectedPID = nil
+    private func refreshApps() {
+        apps = AudioProcessList.playing()
+        if let selectedAppID, !apps.contains(where: { $0.id == selectedAppID }) {
+            self.selectedAppID = nil
         }
         applyScope()
     }
 
     private func applyScope() {
-        guard let selectedPID, let process = processes.first(where: { $0.pid == selectedPID }) else {
+        guard let selectedAppID, let app = apps.first(where: { $0.id == selectedAppID }) else {
             state.recordingScope = .everything
             return
         }
-        state.recordingScope = .processes([process])
+        state.recordingScope = .apps([app])
     }
 
     // MARK: - Level and duration
@@ -175,9 +176,7 @@ struct RecordingView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Recording duration")
 
-            levelBar
-                .accessibilityLabel("Audio level")
-                .accessibilityValue("\(Int(state.recording.level * 100)) percent")
+            meters
 
             VStack(spacing: 2) {
                 Text(folderLabel)
@@ -193,11 +192,92 @@ struct RecordingView: View {
         }
     }
 
+    /// One meter per source when both are captured, and one when there is only one.
+    ///
+    /// The split exists because a single meter fed by the sum cannot answer the question that
+    /// actually goes wrong: a live microphone and a stone-dead tap make a meter that dances
+    /// convincingly, and the user only finds out when they read the transcript and half the
+    /// conversation is missing (ADR-026).
+    @ViewBuilder
+    private var meters: some View {
+        let levels = state.recording.levels
+        if let microphone = levels.microphone, let system = levels.system {
+            VStack(spacing: 8) {
+                labelledMeter("Microphone", level: microphone, symbol: "mic.fill")
+                labelledMeter("System audio", level: system, symbol: "speaker.wave.2.fill")
+            }
+        } else {
+            levelBar(state.recording.level)
+                .accessibilityLabel("Audio level")
+                .accessibilityValue("\(Int(state.recording.level * 100)) percent")
+        }
+
+        if state.recording.receivedNoAudio {
+            warning(
+                "No audio is arriving at all.",
+                detail:
+                    "Nothing is being recorded. Stop, pick a different app or source, and start again."
+            )
+        } else if state.recording.systemAudioSilent {
+            warning(
+                "No system audio is arriving.",
+                detail:
+                    "The microphone is still being recorded. Check that the audio is playing, and that the app above is the one playing it."
+            )
+        }
+    }
+
+    private func labelledMeter(
+        _ title: LocalizedStringKey, level: Float, symbol: String
+    )
+        -> some View
+    {
+        HStack(spacing: 8) {
+            Image(systemName: symbol)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 14)
+                .accessibilityHidden(true)
+            levelBar(level, segments: 20)
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 78, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue("\(Int(level * 100)) percent")
+    }
+
+    /// Says what is happening and what to do about it.
+    ///
+    /// Worded so it never claims more than it knows: when only system audio is missing, the
+    /// microphone side really is being written, and saying "recording failed" would send the
+    /// user to stop a recording that is half good.
+    private func warning(_ title: LocalizedStringKey, detail: LocalizedStringKey) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityElement(children: .combine)
+    }
+
     /// Discrete bars: more readable than one continuous bar, and they hide the slow refresh
     /// rate (15 a second).
-    private var levelBar: some View {
-        let segments = 24
-        let active = Int((state.recording.level * Float(segments)).rounded())
+    private func levelBar(_ level: Float, segments: Int = 24) -> some View {
+        let active = Int((level * Float(segments)).rounded())
         return HStack(spacing: 3) {
             ForEach(0..<segments, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 1.5)

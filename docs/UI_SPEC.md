@@ -104,7 +104,10 @@ the user has already made.
 │  Live model   [ small           ▾ ]     │
 ├─────────────────────────────────────────┤
 │         ●  00:42                        │
-│   ▊▊▊▊▊▊▊▊▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁              │
+│  🎙 ▊▊▊▊▊▊▊▊▊▁▁▁▁▁▁▁▁  Microphone       │
+│  🔊 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁  System audio     │
+│  ⚠ No system audio is arriving.         │
+│    The microphone is still being…       │
 ├─────────────────────────────────────────┤
 │  Merhaba, bu bir test kaydıdır. Bugünkü │
 │  toplantının ana konusu bütçe…          │
@@ -119,7 +122,9 @@ the user has already made.
 - The **name** is given before recording starts, because the output files are derived
   from it; renaming afterwards would touch three files at once.
 - **Source** — microphone, system audio, or both. With system audio, a second picker
-  chooses which app to capture (or all system audio).
+  chooses which app to capture (or all system audio). The picker lists **apps**: a browser's
+  audio comes out of a renderer helper, and offering the helpers by their own names would
+  offer names the user has never seen (ADR-026).
 - **Show the text live while speaking** toggles real-time transcription. When it's off,
   only audio is recorded and the text is produced afterwards. The live preview has its
   own model picker, separate from the one used for the accurate transcript.
@@ -129,6 +134,10 @@ the user has already made.
   deleted: a button pressed by accident shouldn't come back to the user as an error.
 - Without microphone permission the sheet moves into its failure state and shows a
   button that opens Privacy Settings.
+- With both sources captured there is **one meter per source**, not one combined meter, and
+  if system audio stays silent for five seconds the sheet says so. The warning does not stop
+  the recording — the microphone side is perfectly good — it just tells the user something
+  they otherwise only discover when they read the transcript (ADR-026).
 - The level meter is not decorative: it reports a percentage through
   `accessibilityValue`. The duration and the state are read as a single accessibility
   element.

@@ -474,7 +474,13 @@
     "No app is playing audio. Start the audio in Zoom or a browser, then refresh." : {
 
     },
+    "No audio is arriving at all." : {
+
+    },
     "No presets saved yet. You can save one from the list in the toolbar." : {
+
+    },
+    "No system audio is arriving." : {
 
     },
     "No text was produced." : {
@@ -490,6 +496,9 @@
 
     },
     "Nothing here yet" : {
+
+    },
+    "Nothing is being recorded. Stop, pick a different app or source, and start again." : {
 
     },
     "OK" : {
@@ -801,6 +810,9 @@
 
     },
     "The manifest doesn't match this app version." : {
+
+    },
+    "The microphone is still being recorded. Check that the audio is playing, and that the app above is the one playing it." : {
 
     },
     "The model could not be deleted: %@" : {
