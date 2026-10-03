@@ -22,6 +22,8 @@ final class JobQueue {
 
     /// Called when the queue empties (to release the sleep assertion, to notify).
     var onFinish: (@MainActor () -> Void)?
+    /// Called for each job that completes, so the history can record it — ADR-024.
+    var onItemCompleted: (@MainActor (TranscriptionItem) -> Void)?
 
     private let engine: any TranscriptionEngine
     private var runTask: Task<Void, Never>?
@@ -140,6 +142,7 @@ final class JobQueue {
             // Events are applied in separate Tasks, so wait for the last ones to land.
             await Task.yield()
             item.markCompleted()
+            onItemCompleted?(item)
         } catch is CancellationError {
             item.markCancelled()
         } catch let failure as EngineEvent.EngineFailure {

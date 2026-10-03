@@ -730,7 +730,10 @@ practice a check, while opening it twice in one hour politely does not ask GitHu
 ---
 
 ## ADR-021 — Past recordings are listed from the folder, with no index
-**Date:** 2026-10-03 · **Status:** accepted
+**Date:** 2026-10-03 · **Status:** accepted, amended by ADR-024
+
+> The window this ADR describes became a **sidebar tab**, and the list grew to cover dropped
+> files as well as recordings. The folder scan and the Trash decision below are unchanged.
 
 **Context.** A finished recording was only visible for as long as its job sat in the queue.
 The audio was on disk the whole time, in `~/Documents/Whisper Transcriber/`, but nothing in
@@ -851,3 +854,51 @@ disagreeing about what the app is doing. `AppState.activity` is that place.
   a menu bar item; the duplication is not an accident to be factored away.
 - A test asserts no two states share a symbol, because the symbol is the whole message when
   the text is absent.
+
+---
+
+## ADR-024 — One history, in the sidebar, for recordings and dropped files alike
+**Date:** 2026-10-03 · **Status:** accepted · **Amends:** ADR-021
+
+**Context.** ADR-021 put past recordings in a window of their own, reachable only by ⇧⌘L —
+a feature you had to already know about. And it covered recordings only: a file dropped in
+and transcribed left no trace in the app once the queue was cleared, even though that is the
+same question from the user's side. *What have I transcribed, and where did the text go?*
+
+**Decision.** The left pane becomes two tabs, **Queue** and **History**. Queue is what is
+running now; History is everything that has been through before, recordings and dropped files
+in one list. The separate window is gone, ⇧⌘L selects the tab instead, and selecting a row
+reads its transcript into the output pane — so a recording from last week can be read without
+leaving the app.
+
+**Two sources, because the two kinds leave different traces.**
+
+- A **recording** lives in a known folder, so it can be found by scanning (ADR-021). That
+  still holds, and a recording never transcribed still shows up because of it.
+- A **dropped file** can be anywhere on disk and its outputs sit beside it or in a chosen
+  folder. Nothing can be scanned. For those a written record is the only way, so completed
+  jobs are appended to `history.json`.
+
+The two are merged by standardized source path, and the stored entry wins: it is the one
+that knows what the run produced. This is not a contradiction of ADR-021's "no index" — that
+decision was about not keeping an index of something the disk already answers. Here the disk
+does not answer it.
+
+**Details that are deliberate.**
+
+- Running the same file again **replaces** its row rather than adding one. The list answers
+  "what have I done", not "how many times".
+- An entry whose source file has since been deleted is **kept** and marked, not dropped.
+  It is still a record of work done, and quietly removing it would be the app deciding the
+  user's history for them. Its outputs, though, are filtered against the disk every time it
+  is read, so the list never offers to open a transcript that is gone.
+- The list is capped at 500, so a file that is read and written whole stays trivial.
+- "Remove from History" forgets the row and touches no files. "Move Audio to Trash" is
+  offered for recordings only, and still goes to the Trash (ADR-021).
+
+**Consequences.**
+- `JobQueue` gained `onItemCompleted`, which is how a finished job reaches the history.
+- The output pane now has two sources of text: the job being produced, and a finished
+  transcript read off disk. Which one shows is decided by the sidebar tab.
+- A recording is listed once whether it was transcribed or not, because the merge is keyed
+  on the source rather than on the kind.

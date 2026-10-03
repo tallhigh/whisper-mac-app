@@ -29,7 +29,6 @@ struct MenuBarStatusLabel: View {
 /// usually "is this still running, and can I stop it".
 struct MenuBarStatusMenu: View {
     @Environment(AppState.self) private var state
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let activity = state.activity
@@ -58,7 +57,10 @@ struct MenuBarStatusMenu: View {
         Divider()
 
         Button("Open Whisper Transcriber") { activate() }
-        Button("Recordings") { openWindow(id: "recordings") }
+        Button("History") {
+            state.sidebarTab = .history
+            activate()
+        }
     }
 
     /// The main window may be closed or behind something; bringing the app forward is what

@@ -56,7 +56,8 @@ struct WhisperTranscriberApp: App {
                     .keyboardShortcut("k", modifiers: [.command, .shift])
                     .disabled(!state.queue.items.contains { $0.state.isFinished })
                 Divider()
-                RecordingsMenuItem()
+                Button("History") { state.sidebarTab = .history }
+                    .keyboardShortcut("l", modifiers: [.command, .shift])
             }
         }
 
@@ -72,33 +73,12 @@ struct WhisperTranscriberApp: App {
         }
         .menuBarExtraStyle(.menu)
 
-        // The recordings already on disk — ADR-021. A window rather than a pane: the queue
-        // is what is running now, this is what happened before.
-        Window("Recordings", id: "recordings") {
-            RecordingsView()
-                .environment(state)
-        }
-        .defaultSize(width: 560, height: 420)
-
         // ⌘, — the app's behaviour, the model cache and the runtime.
         Settings {
             PreferencesWindow()
                 .environment(state)
                 .environment(updates)
         }
-    }
-}
-
-/// The menu entry for the recordings window.
-///
-/// A `View` rather than a bare `Button` in the menu, because `openWindow` comes from the
-/// environment and the environment is only reachable from inside a view.
-private struct RecordingsMenuItem: View {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("Recordings") { openWindow(id: "recordings") }
-            .keyboardShortcut("l", modifiers: [.command, .shift])
     }
 }
 

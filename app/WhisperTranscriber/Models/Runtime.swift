@@ -24,6 +24,8 @@ struct RuntimeLayout: Sendable {
     var manifest: URL { runtime.appendingPathComponent("runtime.json") }
     var logs: URL { support.appendingPathComponent("logs", isDirectory: true) }
     var presets: URL { support.appendingPathComponent("presets.json") }
+    /// The record of past work — ADR-024.
+    var history: URL { support.appendingPathComponent("history.json") }
 
     /// The temporary download cache. It is cleared at the end of setup, which is why it
     /// lives under Caches rather than Application Support.

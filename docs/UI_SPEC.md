@@ -198,32 +198,39 @@ The elapsed time and the percentage use monospaced digits, or the menu bar shift
 as the clock counts up. The menu also shows how many jobs are waiting, and ends with **Open
 Whisper Transcriber** and **Recordings**.
 
-## Recordings window (⇧⌘L)
+## Left pane — Queue and History (⇧⌘L)
 
-A window of its own, not a pane — the queue is what is running now, this is what happened
-before (ADR-021). It lists the `.m4a` files in the recording folder, newest first:
+A segmented control at the top of the left pane switches between the two (ADR-024):
+
+| Tab | Shows |
+|---|---|
+| **Queue** | What is queued or running now; the drop target lives here |
+| **History** | Everything that has been through before — recordings *and* dropped files |
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  Recordings                                              │
-├──────────────────────────────────────────────────────────┤
-│  ⌁  Recording 2026-10-03 14-22          txt · md         │
-│     3 Oct 2026 at 14:22 · 4,1 MB                         │
-│  ⌁  Ekip toplantısı                     no transcript    │
-│     2 Oct 2026 at 09:05 · 12,8 MB                        │
-├──────────────────────────────────────────────────────────┤
-│  [Show Folder] [Transcribe Again] [Move to Trash…]   2 · 17 MB  ⟳ │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────┐
+│  [ Queue │ History ]         │
+├──────────────────────────────┤
+│  ⌁ Ekip toplantısı           │
+│    3 Oct 14:22 · txt md      │
+│  🗎 mehmet                    │
+│    2 Oct 09:05 · srt vtt     │
+│  ⌁ Recording 2026-10-01      │
+│    1 Oct 18:40 · file missing│
+├──────────────────────────────┤
+│  3 items · 2 recordings  Show Folder │
+└──────────────────────────────┘
 ```
 
-Per row, by context menu or the footer: **Transcribe Again** (into the queue), **Show in
-Finder**, **Open <transcript>** for each one found, and **Move to Trash…**, which confirms
-first. Deleting moves the audio to the Trash and leaves the transcripts alone: a model can be
-downloaded again, a conversation cannot (ADR-021). The right-hand column shows the transcript
-formats found for the recording, or "no transcript".
+Selecting a row reads its transcript into the output pane on the right — plain text first,
+then the notes list; a row whose only outputs are subtitles or JSON says there is nothing to
+show inline. The context menu offers **Transcribe Again**, **Show in Finder**, **Open
+<transcript>** for each output found, **Remove from History** (forgets the row, touches no
+files) and, for recordings only, **Move Audio to Trash…**.
 
-The list is read from the folder each time the window appears, so a file removed in Finder is
-simply gone. It refreshes when a recording finishes.
+A row whose source file has since been deleted stays in the list, marked *file missing*, and
+cannot be transcribed again. Its outputs are checked against the disk each time the list is
+read, so a transcript the user deleted is not offered.
 
 ## Accessibility and behavioural details
 

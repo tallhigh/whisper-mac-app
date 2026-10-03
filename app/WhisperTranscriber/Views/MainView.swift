@@ -15,7 +15,7 @@ struct MainView: View {
         @Bindable var queue = state.queue
 
         HSplitView {
-            QueuePane()
+            sidebar
                 .frame(minWidth: 260, idealWidth: 320)
 
             VSplitView {
@@ -63,6 +63,30 @@ struct MainView: View {
                 },
                 secondaryButton: .cancel(Text("Cancel"))
             )
+        }
+    }
+
+    /// The left side: what is running now, and what has been through before (ADR-024).
+    private var sidebar: some View {
+        @Bindable var state = state
+
+        return VStack(spacing: 0) {
+            Picker("View", selection: $state.sidebarTab) {
+                ForEach(SidebarTab.allCases) { tab in
+                    Label(tab.title, systemImage: tab.symbol).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+
+            Divider()
+
+            switch state.sidebarTab {
+            case .queue: QueuePane()
+            case .history: HistoryPane()
+            }
         }
     }
 

@@ -74,3 +74,27 @@ enum Activity: Equatable, Sendable {
         }
     }
 }
+
+/// The two sides of the sidebar — `docs/UI_SPEC.md` → Left pane.
+enum SidebarTab: String, CaseIterable, Identifiable, Sendable {
+    /// What is queued or running now.
+    case queue
+    /// What has been through the app before: recordings and dropped files alike.
+    case history
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .queue: String(localized: "Queue")
+        case .history: String(localized: "History")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .queue: "list.bullet"
+        case .history: "clock.arrow.circlepath"
+        }
+    }
+}

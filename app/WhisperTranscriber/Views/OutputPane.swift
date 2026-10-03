@@ -32,7 +32,11 @@ struct OutputPane: View {
             Divider()
 
             Group {
-                if let item = state.selectedItem {
+                // The History tab reads a finished transcript off disk; the queue shows the
+                // one being produced. Which pane is showing decides which (ADR-024).
+                if state.sidebarTab == .history {
+                    historyText
+                } else if let item = state.selectedItem {
                     switch tab {
                     case .transcript: transcript(item)
                     case .log: log(item)
@@ -53,6 +57,30 @@ struct OutputPane: View {
         Text("Select a file")
             .foregroundStyle(.tertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The transcript of the selected history row, read from disk.
+    @ViewBuilder
+    private var historyText: some View {
+        if let text = state.historyText {
+            ScrollView {
+                Text(text)
+                    .textSelection(.enabled)
+                    .font(.body.monospaced())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+            }
+        } else if let message = state.historyTextError {
+            Text(message)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            Text("Select something from the history")
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 
     // MARK: - Text

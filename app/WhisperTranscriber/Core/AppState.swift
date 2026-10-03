@@ -30,6 +30,17 @@ final class AppState {
     private(set) var modelDownloadError: String?
     /// The last failure from the recordings list, shown there.
     private(set) var recordingsError: String?
+
+    // MARK: - History
+
+    /// Past work, newest first — ADR-024. Loaded once at launch and kept in step from there.
+    private(set) var history: [HistoryEntry] = []
+    /// Which side of the sidebar is showing.
+    var sidebarTab: SidebarTab = .queue
+    var selectedHistoryID: String?
+    /// The transcript of the selected history row, read from disk on selection.
+    private(set) var historyText: String?
+    private(set) var historyTextError: String?
     let queue: JobQueue
 
     // MARK: - Recording
@@ -110,6 +121,8 @@ final class AppState {
         )
         self.customPresets = PresetStore.load(from: layout.presets)
         self.queue.onFinish = { [weak self] in self?.queueDidFinish() }
+        self.queue.onItemCompleted = { [weak self] item in self?.recordInHistory(item) }
+        self.history = JobHistory.load(from: layout.history)
     }
 
     var selectedItem: TranscriptionItem? {
@@ -197,6 +210,68 @@ final class AppState {
         }
     }
 
+    /// The list the History tab shows: what was transcribed, plus any recording that never
+    /// was, with outputs that have since been deleted filtered out.
+    func historyEntries() -> [HistoryEntry] {
+        JobHistory.refreshed(
+            JobHistory.merged(stored: history, recordings: pastRecordings()))
+    }
+
+    /// Records a finished job. Called for every completed item, recordings included — a
+    /// recording that went through the accurate pass is one row, not two (ADR-024).
+    private func recordInHistory(_ item: TranscriptionItem) {
+        let outputs = item.result?.outputs.map(\.url) ?? []
+        let entry = HistoryEntry(
+            source: item.url,
+            kind: item.url.standardizedFileURL.path.hasPrefix(
+                recordingDirectory.standardizedFileURL.path) ? .recording : .file,
+            date: Date(),
+            outputs: outputs,
+            model: item.settings.model,
+            language: item.settings.language
+        )
+        history = JobHistory.adding(entry, to: history)
+        JobHistory.save(history, to: layout.history)
+    }
+
+    /// Loads the text of a history row for the output pane.
+    ///
+    /// Plain text first, then the notes list: those are the two a person reads. A row whose
+    /// only outputs are subtitles or JSON has nothing worth showing inline, and says so.
+    func selectHistory(_ entry: HistoryEntry?) {
+        selectedHistoryID = entry?.id
+        historyText = nil
+        historyTextError = nil
+        guard let entry else { return }
+
+        let preferred: [String] = [
+            OutputFormat.txt.fileExtension, OutputFormat.notes.fileExtension,
+            OutputFormat.srt.fileExtension, OutputFormat.vtt.fileExtension,
+            OutputFormat.tsv.fileExtension, OutputFormat.json.fileExtension,
+        ]
+        let readable = preferred.lazy.compactMap { ext in
+            entry.outputs.first { $0.pathExtension.lowercased() == ext }
+        }.first
+
+        guard let url = readable else {
+            historyTextError = String(localized: "No transcript was found for this one.")
+            return
+        }
+        do {
+            historyText = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            historyTextError = String(
+                localized: "The transcript could not be read: \(error.localizedDescription)")
+        }
+    }
+
+    /// Forgets a row. The files are left alone; this only drops the record of them.
+    func forgetHistory(_ entry: HistoryEntry) {
+        history.removeAll { $0.id == entry.id }
+        JobHistory.save(history, to: layout.history)
+        if selectedHistoryID == entry.id { selectHistory(nil) }
+    }
+
     // MARK: - What the app is doing
 
     /// The one place the app's current activity is decided — ADR-023.
@@ -238,19 +313,20 @@ final class AppState {
         )
     }
 
-    /// Puts a past recording back through the accurate pass.
-    func transcribeAgain(_ entry: RecordingEntry) {
-        queue.enqueue([entry.url], settings: settings)
+    /// Puts a past file back through the queue, and switches to it so the user sees it go.
+    func transcribeAgain(_ url: URL) {
+        queue.enqueue([url], settings: settings)
         selectedItemID = queue.items.last?.id
+        sidebarTab = .queue
         if preferences.autoStartOnAdd {
             startQueue()
         }
     }
 
     /// Moves a recording to the Trash — recoverable on purpose (ADR-021).
-    func moveRecordingToTrash(_ entry: RecordingEntry) {
+    func moveRecordingToTrash(_ url: URL) {
         do {
-            try RecordingsLibrary.moveToTrash(entry.url)
+            try RecordingsLibrary.moveToTrash(url)
             recordingsError = nil
         } catch {
             recordingsError = error.localizedDescription

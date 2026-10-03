@@ -78,9 +78,11 @@ When you finish, the sheet closes at once and the recording is saved, then goes
 through a full-quality pass — so the live text is a preview and the file you keep is
 the accurate version.
 
-Past recordings stay in reach: **⇧⌘L** lists everything you have recorded, newest
-first, with the transcripts found for each. From there you can transcribe one again,
-open its text, or move the audio to the Trash — the transcripts stay.
+Nothing gets lost afterwards. The left pane has two tabs: **Queue** for what is
+running now, and **History** for everything that has been through before — recordings
+and files you dropped in alike. Click a row and its transcript opens on the right, so
+a recording from last week is one click from being read again. From there you can also
+transcribe it again, open any of its output files, or move the audio to the Trash.
 
 ### Six output formats
 
@@ -146,7 +148,7 @@ happening the item is gone, rather than sitting in your menu bar doing nothing.
 | ⌘R | Start the queue |
 | ⌘. | Stop the running job |
 | ⇧⌘K | Clear finished jobs |
-| ⇧⌘L | Past recordings |
+| ⇧⌘L | History |
 | ⌘, | Settings |
 
 ---
