@@ -141,6 +141,8 @@ private struct GeneralPreferences: View {
 
 private struct ModelPreferences: View {
     @Environment(AppState.self) private var state
+    /// The model the confirmation dialog is asking about; `nil` while it is closed.
+    @State private var modelToDelete: String?
 
     var body: some View {
         @Bindable var state = state
@@ -169,8 +171,8 @@ private struct ModelPreferences: View {
                 }
                 Text(
                     """
-                    Models are downloaded into this folder. The app only reads from it; \
-                    it never deletes a model.
+                    Models are downloaded into this folder. The app only ever removes a model \
+                    you delete yourself, one at a time; the folder itself is left alone.
                     """
                 )
                 .font(.caption)
@@ -199,8 +201,39 @@ private struct ModelPreferences: View {
                     }
                 }
             }
+
+            if let message = state.modelDeleteError {
+                Section {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                }
+            }
         }
         .formStyle(.grouped)
+        // A deleted model costs a download to get back, so the name and the size it frees
+        // are both in the question.
+        .confirmationDialog(
+            deletePrompt,
+            isPresented: .init(get: { modelToDelete != nil }, set: { if !$0 { modelToDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Model", role: .destructive) {
+                guard let model = modelToDelete else { return }
+                modelToDelete = nil
+                Task { await state.deleteModel(model) }
+            }
+            Button("Cancel", role: .cancel) { modelToDelete = nil }
+        } message: {
+            Text("You can download it again later. Nothing else in the folder is touched.")
+        }
+    }
+
+    private var deletePrompt: String {
+        guard let model = modelToDelete else { return String(localized: "Delete the model?") }
+        guard let size = state.capabilities?.sizeLabel(for: model) else {
+            return String(localized: "Delete \(model)?")
+        }
+        return String(localized: "Delete \(model) and free \(size)?")
     }
 
     private var modelDirectory: URL {
@@ -225,6 +258,18 @@ private struct ModelPreferences: View {
             Text(capabilities.sizeLabel(for: model) ?? "—")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
+            // Only a downloaded model can be deleted, so the button is absent rather than
+            // disabled on the rows where it would do nothing.
+            if capabilities.isCached(model) {
+                Button {
+                    modelToDelete = model
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .help("Delete this model from the folder")
+                .accessibilityLabel("Delete \(model)")
+            }
         }
     }
 }

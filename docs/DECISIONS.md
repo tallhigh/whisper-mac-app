@@ -116,18 +116,21 @@ pytest and are verified deliberately whenever the `openai-whisper` version is bu
 ---
 
 ## ADR-005 — The default model directory is the user's `~/.cache/whisper`
-**Date:** 2026-10-01 · **Status:** accepted
+**Date:** 2026-10-01 · **Status:** accepted, amended by ADR-017
 
 **Decision.** `model_dir` defaults to `~/.cache/whisper`. The app reads from that
-directory, writes to it only through whisper's downloader, and **never deletes** from
-it.
+directory and writes to it only through whisper's downloader.
+
+> The original decision also said the app **never deletes** from the directory.
+> **ADR-017 replaced that**: the Models tab can delete one model file on a confirmed
+> request. The directory itself is still never removed.
 
 **Rationale.** The user's directory already holds `small.pt`, `large-v3.pt` and
 `large-v3-turbo.pt` (4.8 GB in total). Choosing an app-specific directory would have
 meant downloading those 4.8 GB again.
 
 **Consequences.** The directory lives outside the app, under the user's control. The
-Models tab in Settings has no delete button; it only reveals the folder in Finder.
+Models tab reveals it in Finder and, since ADR-017, can delete a single model from it.
 
 ---
 
@@ -431,3 +434,48 @@ the exception route ADR-007 anticipated was written for precisely this situation
 - System audio capture was measured the same way in Phase 7.2: **it needs no
   entitlement and no extra permission.** A capture with `source: both` recorded 51.9 s
   successfully without one, so nothing was added.
+
+---
+
+## ADR-017 — Deleting a model is allowed, from the app, one file at a time
+**Date:** 2026-10-03 · **Status:** accepted · **Amends:** ADR-005
+
+**Decision.** The Models tab gets a delete button on each downloaded model. It asks for
+confirmation, naming the model and the space it frees, and then removes exactly one file:
+`<model>.pt` in the folder the worker reported. The app still never removes the model
+folder itself, and there is no "delete all".
+
+The deletion is done in Swift with `FileManager`, not through the worker protocol. The
+protocol is a transcription contract; adding a file-management verb to it would mean a
+version bump, a new event, and a round trip through a child process for an operation that
+is one call. `ModelStore` holds the rules, and the Models tab is its only caller.
+
+**Rationale.** ADR-005 said the app never deletes from the user's `~/.cache/whisper`,
+and the reasoning there was about not destroying a 4.8 GB download the user already had.
+That protects the user from the *app*, but it also left them without the one thing the
+folder actually needs: a way to reclaim the space from inside the app that filled it. A
+`large-v3` the user tried once is 3 GB sitting there, and sending them to Finder to find
+a `.pt` file by name is worse than a button — they can delete the wrong thing there, with
+no list of which names are models.
+
+So the protection moves from "never" to "only what was asked for":
+
+- the name must be one the **worker** reported in `capabilities`, so a value from
+  anywhere else cannot reach `removeItem`;
+- it must be a plain file name — no separator, no traversal, no leading dot;
+- the target must be a **regular file**. If `tiny.pt` turned out to be a directory,
+  `removeItem` would take the tree with it, so that case is refused instead;
+- one model per confirmed action. No sweep, no "free up space" button that decides for
+  the user.
+
+**Consequences.**
+- ADR-005's "never deletes" no longer holds as written; its default-directory decision
+  and its rationale are untouched.
+- The directory the file is deleted from comes from `capabilities.model_dir`, not from
+  `settings.modelDirectory`. Those can differ — `capabilities` always measures the
+  worker's default directory — and the sizes shown in the tab come from the same place,
+  so the delete and the number next to it always refer to the same file.
+- A deleted model is gone, not in the Trash: `removeItem` is not a move to the Trash, and
+  whisper re-downloads it on next use. The confirmation says so.
+- `ModelStoreTests` covers the refusals, not just the happy path, including the directory
+  impostor and the folder surviving the deletion of the last model.

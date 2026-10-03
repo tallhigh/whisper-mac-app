@@ -160,7 +160,8 @@ enum EngineEvent: Equatable, Sendable {
                 case .modelDownloadFailed:
                     String(localized: "Check your internet connection and try again.")
                 case .modelLoadFailed:
-                    String(localized: "The model file may be corrupt; delete it from the model folder.")
+                    String(
+                        localized: "The model file may be corrupt; delete it under Settings → Models.")
                 case .audioDecodeFailed:
                     String(localized: "The file may be corrupt or in an unsupported format.")
                 case .outOfMemory:

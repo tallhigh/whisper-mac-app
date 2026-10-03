@@ -21,6 +21,8 @@ final class AppState {
 
     private(set) var capabilities: EngineCapabilities?
     private(set) var capabilitiesError: String?
+    /// The last model deletion failure, shown in the Models tab. `nil` once one succeeds.
+    private(set) var modelDeleteError: String?
     let queue: JobQueue
 
     // MARK: - Recording
@@ -185,6 +187,25 @@ final class AppState {
         } catch {
             capabilitiesError = error.localizedDescription
         }
+    }
+
+    /// Deletes one downloaded model and reads the capabilities again so the list, the sizes
+    /// and the total shrink with it.
+    ///
+    /// The folder comes from the **capabilities**, not from `settings.modelDirectory`: the
+    /// worker reports the directory it actually measured the sizes in, and that is the one
+    /// holding the file. Errors land in `modelDeleteError` for the Models tab to show; a
+    /// failure here must not disturb the queue.
+    func deleteModel(_ model: String) async {
+        guard let capabilities, let directory = capabilities.modelDir else { return }
+        do {
+            try ModelStore.delete(
+                model, in: URL(filePath: directory), known: capabilities.models)
+            modelDeleteError = nil
+        } catch {
+            modelDeleteError = error.localizedDescription
+        }
+        await loadCapabilities()
     }
 
     /// If the installed whisper version doesn't know the selected model, we fall back to a

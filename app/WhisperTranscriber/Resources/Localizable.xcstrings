@@ -26,6 +26,12 @@
     "%@ is missing from the app bundle. Download the app again." : {
 
     },
+    "%@ is not a known model." : {
+
+    },
+    "%@ is not downloaded." : {
+
+    },
     "%@ is not supported" : {
 
     },
@@ -200,10 +206,35 @@
     "Delete" : {
 
     },
+    "Delete %@" : {
+
+    },
+    "Delete %@ and free %@?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Delete %1$@ and free %2$@?"
+          }
+        }
+      }
+    },
+    "Delete %@?" : {
+
+    },
     "Delete Environment…" : {
 
     },
+    "Delete Model" : {
+
+    },
+    "Delete the model?" : {
+
+    },
     "Delete the runtime?" : {
+
+    },
+    "Delete this model from the folder" : {
 
     },
     "Deletes the runtime and installs it from scratch (~850 MB download)" : {
@@ -317,7 +348,7 @@
     "Models" : {
 
     },
-    "Models are downloaded into this folder. The app only reads from it; it never deletes a model." : {
+    "Models are downloaded into this folder. The app only ever removes a model you delete yourself, one at a time; the folder itself is left alone." : {
 
     },
     "My presets" : {
@@ -579,6 +610,9 @@
     "Task" : {
 
     },
+    "The %@ entry in the model folder is not a file." : {
+
+    },
     "The %@ step failed (exit code %d)." : {
       "localizations" : {
         "en" : {
@@ -622,7 +656,10 @@
     "The manifest doesn't match this app version." : {
 
     },
-    "The model file may be corrupt; delete it from the model folder." : {
+    "The model could not be deleted: %@" : {
+
+    },
+    "The model file may be corrupt; delete it under Settings → Models." : {
 
     },
     "The model list is read once the runtime is ready." : {
@@ -741,6 +778,9 @@
 
     },
     "With this off, only audio is recorded; the text is produced afterwards" : {
+
+    },
+    "You can download it again later. Nothing else in the folder is touched." : {
 
     },
     "and %lld more files" : {

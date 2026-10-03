@@ -200,9 +200,12 @@ the directory.
 
 ## Never do this
 
-- Don't delete, move or rename the user's `~/.cache/whisper` directory — it holds 4.8 GB of
-  downloaded models (small, large-v3, large-v3-turbo) and it is **the** default model
-  directory.
+- Don't delete, move or rename the user's `~/.cache/whisper` **directory** — it holds 4.8 GB
+  of downloaded models (small, large-v3, large-v3-turbo) and it is **the** default model
+  directory. Deleting a single model *file* from it is allowed, but only the way ADR-017 sets
+  out: through `ModelStore`, for a name the worker reported, on a confirmed request, one
+  model at a time. Nothing else in the app may call `removeItem` on that folder, and there is
+  no "delete all".
 - Don't write to the system Python, to Homebrew or to the global PATH. The app never calls
   `brew install`.
 - Don't add an App Sandbox entitlement (there is no App Store target; the sandbox breaks

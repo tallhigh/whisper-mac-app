@@ -66,7 +66,7 @@ the recording.
 
 - **14 Whisper models**, from `tiny` for speed to `large-v3` for accuracy, plus the
   `turbo` variants. The app shows which ones you already have on disk and how much
-  space each takes.
+  space each takes, and lets you delete one you no longer want to reclaim the space.
 - **100 languages**, or let Whisper detect it. The translate task writes the
   transcript in English whatever the source language is.
 - **Presets** — four are built in (Quick note, Meeting notes, High quality,
