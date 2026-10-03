@@ -16,6 +16,15 @@ options:
     macOS: "14.4"
   groupSortPosition: top
 
+packages:
+  # The update framework. Taken through SPM rather than vendored so that Xcode embeds and
+  # signs it together with its helper apps (Autoupdate.app, Updater.app, the XPC services) —
+  # getting that right by hand is most of what Sparkle exists to do. ADR-020.
+  # The signing *tools* are vendored separately by `make bootstrap`; they never ship.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.0
+
 configs:
   Debug: debug
   Release: release
@@ -84,6 +93,9 @@ targets:
             destination: resources
             subpath: python
 
+    dependencies:
+      - package: Sparkle
+
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.talhaturhan.WhisperTranscriber
@@ -111,6 +123,15 @@ targets:
         NSMicrophoneUsageDescription: "Whisper Transcriber needs the microphone to record audio and transcribe it. The recording is processed only on this Mac."
         # The repository link in the About tab. With it empty, no link is shown.
         WTRepositoryURL: "https://github.com/tallhigh/whisper-mac-app"
+        # --- Sparkle (ADR-020) -------------------------------------------------------
+        # The appcast is uploaded as an asset of every release, and this URL always
+        # redirects to the newest one — so no separate hosting is needed.
+        SUFeedURL: "https://github.com/tallhigh/whisper-mac-app/releases/latest/download/appcast.xml"
+        # The EdDSA *public* key. Its private half lives only in the keychain and is what
+        # `sign_update` uses at release time; an update not signed by it is refused.
+        SUPublicEDKey: "QSxaf8nXmsuwiX9QEK6rHAEYcbC4+tHqWjKhKMzkyq4="
+        # Check daily in the background. Sparkle asks the user before its first check.
+        SUEnableAutomaticChecks: true
         # For "Open With" in Finder and dragging onto the Dock.
         CFBundleDocumentTypes:
           - CFBundleTypeName: Audio or video file

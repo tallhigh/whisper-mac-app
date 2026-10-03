@@ -42,12 +42,35 @@ Verification — this should return an empty list without erroring:
 xcrun notarytool history --keychain-profile "WHISPER_NOTARY"
 ```
 
-### 2. GitHub access
+### 2. The Sparkle signing key
+
+Updates carry a second signature besides Apple's: an Ed25519 signature the installed app
+checks against `SUPublicEDKey` before it will install anything (ADR-020). Generate the pair
+once:
+
+```bash
+make bootstrap                      # fetches Sparkle's tools into vendor/
+./vendor/sparkle/bin/generate_keys  # prints the public key, stores the private one
+```
+
+The **private** key goes into the keychain and nowhere else — not into the repository, not
+into `scripts/local.env`. The **public** key it prints belongs in `app/project.yml` under
+`SUPublicEDKey`; it is public by design and is committed.
+
+To read the public key again later: `./vendor/sparkle/bin/generate_keys -p`
+
+> **Back this key up with the Developer ID certificate.** Losing it means no copy already
+> installed will ever accept another update — users would have to download the app by hand
+> again. `make_appcast.sh` refuses to build a feed if the key in the built bundle is not the
+> counterpart of the one in the keychain, so a mismatch stops the release instead of
+> shipping an update nothing accepts.
+
+### 3. GitHub access
 ```bash
 gh auth login
 ```
 
-### 3. Local variables
+### 4. Local variables
 `scripts/local.env` (not committed; `scripts/local.env.example` is the template kept in
 the repository):
 ```sh

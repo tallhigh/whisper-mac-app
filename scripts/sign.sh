@@ -44,4 +44,31 @@ TEAM_IN_UV="$(awk -F'=' '/TeamIdentifier/ { print $2 }' <<<"$UV_INFO")"
 [[ "$TEAM_IN_APP" == "$TEAM_IN_UV" ]] \
   || die "the team identifiers differ (.app=$TEAM_IN_APP uv=$TEAM_IN_UV)"
 
+# Sparkle brings nested code of its own — a helper app and XPC services that do the part an
+# app cannot do to itself. Xcode signs them as embedded content, but a mis-signed one only
+# shows up as a notarization rejection minutes later, or worse as an update that fails on a
+# user's machine. Checked here instead (ADR-020).
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+if [[ -d "$SPARKLE" ]]; then
+  say "verifying the Sparkle framework"
+  codesign --verify --strict --verbose=2 "$SPARKLE"
+  SPARKLE_INFO="$(codesign -dv --verbose=4 "$SPARKLE" 2>&1)"
+  TEAM_IN_SPARKLE="$(awk -F'=' '/TeamIdentifier/ { print $2 }' <<<"$SPARKLE_INFO")"
+  [[ "$TEAM_IN_SPARKLE" == "$TEAM_IN_APP" ]] \
+    || die "Sparkle is signed by another team (.app=$TEAM_IN_APP sparkle=$TEAM_IN_SPARKLE)"
+
+  # Every nested executable has to carry Hardened Runtime too, or notarization refuses the
+  # whole bundle. Checked one by one rather than trusted.
+  while IFS= read -r nested; do
+    NESTED_INFO="$(codesign -dv --verbose=4 "$nested" 2>&1)"
+    case "$NESTED_INFO" in
+      *"(runtime)"*) ;;
+      *) die "nested code without Hardened Runtime: ${nested#"$APP/"}" ;;
+    esac
+  done < <(find "$SPARKLE" \( -name '*.app' -o -name '*.xpc' \) -maxdepth 4)
+  say "Sparkle ok — $(find "$SPARKLE" \( -name '*.app' -o -name '*.xpc' \) -maxdepth 4 | wc -l | tr -d ' ') nested helpers verified"
+else
+  warn "Sparkle.framework is not in the bundle — this build cannot update itself"
+fi
+
 say "signature ok — team identifier $TEAM_IN_APP"

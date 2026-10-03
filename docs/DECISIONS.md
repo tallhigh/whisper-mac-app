@@ -196,7 +196,10 @@ acceptance-test list in `docs/PLAN.md`. No tag is created from a tree that isn't
 ---
 
 ## ADR-010 — No Sparkle (auto-update) in v1
-**Date:** 2026-10-01 · **Status:** accepted
+**Date:** 2026-10-01 · **Status:** superseded by ADR-020
+
+> Its rationale was "a single user". The repository became public, which removed the
+> premise; **ADR-020** adopted Sparkle as this ADR said a later one would have to.
 
 **Decision.** There is no update check in v1; the user downloads the new `.dmg` from
 GitHub Releases.
@@ -642,3 +645,71 @@ working as before.
 - The Models tab now has three states per row: a trash button for what is downloaded, a
   download button for what is not, and a progress bar for the one in flight.
 - Bumping `openai-whisper` now means checking a fourth internal coupling, not three.
+
+---
+
+## ADR-020 — Sparkle, for updates that install themselves
+**Date:** 2026-10-03 · **Status:** accepted · **Supersedes:** ADR-010
+
+**Context.** ADR-010 refused Sparkle with a one-line rationale: "a single user". That
+premise is gone — the repository is public and the `.dmg` is downloadable by anyone, so
+"the user will notice a new release and drag it in again" is no longer a plan. ADR-010 also
+anticipated this and said a new ADR would be written if it changed.
+
+**Decision.** Sparkle 2.10.0, pinned exactly, for the full cycle: check, download, verify,
+install, relaunch.
+
+**Why not hand-rolled.** Checking a version and downloading a file is easy, and neither is
+the problem. The problem is that **an application cannot replace itself while it is
+running**, and doing it anyway means a staged copy, an external helper to swap the bundle
+after the app exits, correct handling of quarantine and app translocation, and a relaunch.
+Sparkle ships exactly that — `Autoupdate`, `Updater.app` and two XPC services, all of which
+appear in our bundle and are verified at signing time. Writing a worse version of it would
+risk leaving a user with no working app at all.
+
+**The framework comes from SPM, the tools are vendored.** Xcode embeds and signs the
+framework together with its four nested helpers; getting that right by hand is most of what
+Sparkle does for us. The signing *tools* (`generate_keys`, `sign_update`) never ship, so
+`make bootstrap` fetches them into `vendor/` the way it already fetches `uv` — with the
+sha256 pinned in `versions.env`, because Sparkle publishes no sibling checksum file and a
+release an attacker could replace would carry a checksum they could replace too.
+
+This is the project's **first third-party Swift dependency**. It earns the exception by
+doing the one thing that cannot be done safely in-process.
+
+**Trust.** Two independent signatures have to hold before an update installs:
+
+- Apple's: the new `.dmg` is Developer ID-signed, notarized and stapled, exactly as before.
+- Ours: an **EdDSA (Ed25519)** signature over the `.dmg`, checked against `SUPublicEDKey`
+  in the running app. Its private half is generated once and lives **only in the keychain** —
+  never in the repository, never in `local.env`. Losing it means no installed copy will ever
+  accept another update, so it belongs in the same backup as the Developer ID certificate.
+
+`make_appcast.sh` refuses to produce a feed if the key in the **built bundle** is not the
+counterpart of the key in the keychain. That failure would otherwise be invisible here and
+total on everyone else's machine; the guard was tested by swapping the key and watching the
+release stop.
+
+**The appcast needs no hosting.** It is uploaded as an asset of each release, and
+`https://github.com/tallhigh/whisper-mac-app/releases/latest/download/appcast.xml` always
+redirects to the newest one. No GitHub Pages, no separate server, nothing else to keep alive.
+
+A one-item feed is deliberate: Sparkle only compares the newest item against the running
+build, and `generate_appcast` — which infers a whole feed by scanning a directory of
+archives — would be guessing at what the release script already knows exactly.
+`sparkle:version` is the build number, which `release.sh` already increments monotonically.
+
+**Consequences.**
+- Releasing now also signs the dmg with the EdDSA key and uploads `appcast.xml`. A release
+  made on a machine without that key in its keychain **stops before notarizing**, rather
+  than publishing a release nothing can update to.
+- `make bootstrap` is required before a release, not just before a build.
+- The bundle grew by Sparkle's framework and helpers; the dmg went from 17 MB to 19 MB.
+- A Debug build carries no feed URL, so `UpdateController` is inert there. It is inert under
+  the test runner too, by default — otherwise Sparkle would ask for permission and schedule
+  a network request in the middle of a test run.
+- Bumping Sparkle means changing both `SPARKLE_VERSION` and `SPARKLE_SHA256`, and the
+  version in `app/project.yml`, which is deliberately duplicated so the framework and the
+  tools can never silently disagree.
+- Users on 1.1.0 or earlier have no updater, so they upgrade by hand one last time. From
+  1.1.1 onwards it is automatic.

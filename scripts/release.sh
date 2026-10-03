@@ -14,7 +14,13 @@ VERSION="${1:-}"
 
 require_tool git
 require_tool gh
+require_tool xmllint
 require_notary_profile
+# Checked here rather than after notarizing: a release whose appcast cannot be signed is a
+# release no installed copy would accept, and finding that out at the end wastes a
+# notarization round (ADR-020).
+[[ -x "$ROOT/vendor/sparkle/bin/sign_update" ]] \
+  || die "Sparkle's tools are missing — run 'make bootstrap'"
 
 cd "$ROOT"
 
@@ -49,6 +55,11 @@ DMG="$(dmg_path)"
 say "release notes"
 ./scripts/release_notes.sh "$VERSION" > "$DIST/RELEASE_NOTES.md"
 
+# The appcast is what installed copies read to find this release, so it goes up with the
+# dmg as an asset of the same release (ADR-020). It needs the notes, hence the order.
+say "appcast"
+./scripts/make_appcast.sh "$VERSION"
+
 say "tag and GitHub Release"
 git tag -a "v$VERSION" -m "v$VERSION"
 git push origin main
@@ -56,7 +67,7 @@ git push origin "v$VERSION"
 
 REPO_ARGS=()
 [[ -n "$GH_REPO" ]] && REPO_ARGS=(--repo "$GH_REPO")
-gh release create "v$VERSION" "$DMG" \
+gh release create "v$VERSION" "$DMG" "$DIST/appcast.xml" \
   --title "v$VERSION" \
   --notes-file "$DIST/RELEASE_NOTES.md" \
   "${REPO_ARGS[@]}"

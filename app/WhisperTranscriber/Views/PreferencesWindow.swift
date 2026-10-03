@@ -458,6 +458,7 @@ private struct RuntimePreferences: View {
 
 private struct AboutPreferences: View {
     @Environment(AppState.self) private var state
+    @Environment(UpdateController.self) private var updates
 
     var body: some View {
         VStack(spacing: 12) {
@@ -492,6 +493,25 @@ private struct AboutPreferences: View {
                     .foregroundStyle(.tertiary)
             }
 
+            // Absent in a Debug build, which carries no feed URL (ADR-020).
+            if updates.isConfigured {
+                VStack(spacing: 6) {
+                    Button("Check for Updates…") { updates.checkForUpdates() }
+                        .disabled(!updates.canCheckForUpdates)
+
+                    Toggle("Check automatically", isOn: automaticBinding)
+                        .toggleStyle(.checkbox)
+                        .font(.callout)
+
+                    if let date = updates.lastCheckDate {
+                        Text("Last checked \(date.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.top, 4)
+            }
+
             // The repository address comes from Info.plist; with none defined yet, no link
             // is shown — we don't want to link to an address that doesn't exist.
             if let repository = Self.repository {
@@ -505,6 +525,15 @@ private struct AboutPreferences: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
+    }
+
+    /// Sparkle owns the stored preference, so the toggle reads and writes through it rather
+    /// than keeping a copy that could disagree.
+    private var automaticBinding: Binding<Bool> {
+        Binding(
+            get: { updates.automaticallyChecks },
+            set: { updates.automaticallyChecks = $0 }
+        )
     }
 
     static var version: String {

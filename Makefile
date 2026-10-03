@@ -26,8 +26,9 @@ help: ## Show this list
 # --- setup -----------------------------------------------------------------
 
 .PHONY: bootstrap
-bootstrap: ## Download and verify the embedded uv binary
+bootstrap: ## Download and verify the embedded uv binary + Sparkle's signing tools
 	./scripts/fetch_uv.sh
+	./scripts/fetch_sparkle.sh
 
 .PHONY: provision
 provision: bootstrap ## Install the isolated Python runtime (what first launch does)
@@ -146,8 +147,12 @@ notes: ## Generate the release notes into dist/RELEASE_NOTES.md
 	./scripts/release_notes.sh > dist/RELEASE_NOTES.md
 	@echo "wrote dist/RELEASE_NOTES.md"
 
+.PHONY: appcast
+appcast: ## Write the Sparkle appcast for the built dmg into dist/
+	./scripts/make_appcast.sh
+
 .PHONY: release
-release: ## Full release: test -> archive -> notarize -> dmg -> gh release (VERSION=x.y.z)
+release: ## Full release: test -> archive -> notarize -> dmg -> appcast -> gh release (VERSION=x.y.z)
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=0.1.0"; exit 1; }
 	./scripts/release.sh "$(VERSION)"
 
@@ -171,3 +176,6 @@ doctor: ## Audit the environment
 	@echo "runtime    : $$(test -f "$(RUNTIME)/runtime.json" && echo ready || echo 'missing — make provision')"
 	@echo "signature  : $$(security find-identity -v -p codesigning | grep 'Developer ID' | head -1 || echo missing)"
 	@echo "gh         : $$(gh auth status >/dev/null 2>&1 && echo 'logged in' || echo 'not logged in — gh auth login')"
+	@echo "notary     : $$(xcrun notarytool history --keychain-profile WHISPER_NOTARY >/dev/null 2>&1 && echo 'WHISPER_NOTARY ok' || echo 'missing — docs/BUILD_AND_RELEASE.md')"
+	@echo "sparkle    : $$(test -x vendor/sparkle/bin/sign_update && echo "tools $$(cat vendor/sparkle/.version 2>/dev/null)" || echo 'missing — make bootstrap')"
+	@echo "update key : $$(test -x vendor/sparkle/bin/generate_keys && vendor/sparkle/bin/generate_keys -p 2>/dev/null | tail -1 || echo 'unknown — make bootstrap')"

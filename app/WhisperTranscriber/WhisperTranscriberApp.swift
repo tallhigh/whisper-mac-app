@@ -4,12 +4,14 @@ import SwiftUI
 @main
 struct WhisperTranscriberApp: App {
     @State private var state = AppState()
+    @State private var updates = UpdateController()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(state)
+                .environment(updates)
                 .task {
                     delegate.state = state
                     // In the unit tests the app is launched as a "test host". Probing the
@@ -23,6 +25,11 @@ struct WhisperTranscriberApp: App {
         .defaultSize(width: 1100, height: 720)
         .windowResizability(.contentMinSize)
         .commands {
+            // Where macOS users look for it: the app menu, under About.
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { updates.checkForUpdates() }
+                    .disabled(!updates.canCheckForUpdates)
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Add Files…") { state.openFilePanel() }
                     .keyboardShortcut("o")
@@ -49,6 +56,7 @@ struct WhisperTranscriberApp: App {
         Settings {
             PreferencesWindow()
                 .environment(state)
+                .environment(updates)
         }
     }
 }

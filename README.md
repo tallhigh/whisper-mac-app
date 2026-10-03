@@ -9,7 +9,7 @@ No terminal, no API key, no account, no upload.
 ### [⬇ Download the latest release](https://github.com/tallhigh/whisper-mac-app/releases/latest)
 
 Signed with an Apple Developer ID, notarized and stapled, so it opens without a
-Gatekeeper warning. ~18 MB.
+Gatekeeper warning. ~19 MB, and it keeps itself up to date from then on.
 
 ---
 
@@ -79,6 +79,9 @@ the recording.
   reveal the finished files in Finder.
 - **Apple Silicon GPU or CPU**, your choice. If the GPU path fails on a file, the
   app retries on the CPU instead of giving up.
+- **Updates itself.** The app checks for a new version in the background and installs it
+  on your say-so. Every update has to carry both Apple's notarization and the project's
+  own signature before it will be accepted, so there is no "download it again by hand".
 - **A CPU budget**, so a transcription doesn't take the machine over. By default it
   leaves a fast core free and runs at a lower priority — about 5% slower, and you can
   keep working. Pick *Background* and it stays on the efficiency cores.

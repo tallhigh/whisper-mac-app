@@ -193,6 +193,12 @@ the directory.
   the icon); `dist/icon-preview*.png` is not.
 - **The Python side is limited to the stdlib plus `whisper`.** Adding a dependency to the
   worker grows the first-launch download; write the rationale into `docs/DECISIONS.md`.
+- **Swift has exactly one third-party dependency: Sparkle** (ADR-020), and it earns that by
+  doing the one thing an app cannot safely do in-process — replace itself while running.
+  Anything else belongs in the standard library or in this repository. A second dependency
+  needs an ADR arguing the same kind of case.
+- **Sparkle is only touched through `UpdateController`.** No view imports it, for the same
+  reason no view knows which engine transcribes.
 - The worker's **stdout is the protocol channel.** Never use a plain `print()` on the
   Python side — go through the `emit(event)` function. Details: `docs/PROTOCOL.md`.
 - The worker is coupled to whisper's internal API at **four** points:
@@ -215,9 +221,11 @@ the directory.
   `brew install`.
 - Don't add an App Sandbox entitlement (there is no App Store target; the sandbox breaks
   file access).
-- Don't commit a certificate, a `.p12`, an app-specific password or a `notarytool`
-  credential. Those live in the keychain profile (`WHISPER_NOTARY`) and in
-  `scripts/local.env`; neither goes into git.
+- Don't commit a certificate, a `.p12`, an app-specific password, a `notarytool`
+  credential or **Sparkle's EdDSA private key**. Those live in the keychain (the
+  `WHISPER_NOTARY` profile, and the `ed25519` account) and in `scripts/local.env`; none of
+  them goes into git. `SUPublicEDKey` in `app/project.yml` is the *public* half and is
+  committed on purpose.
 - Don't skip the overwrite check when writing into the input file's directory — never
   silently clobber an existing `.txt`.
 - Don't embed the model or torch inside the `.app` (see `docs/DECISIONS.md` ADR-001).

@@ -175,6 +175,12 @@
     "Changing a setting doesn't affect the running job; it applies from the next one on." : {
 
     },
+    "Check automatically" : {
+
+    },
+    "Check for Updates…" : {
+
+    },
     "Check the audio-recording permission in System Settings." : {
 
     },
@@ -351,6 +357,9 @@
 
     },
     "Language" : {
+
+    },
+    "Last checked %@" : {
 
     },
     "Leave the Mac usable" : {
