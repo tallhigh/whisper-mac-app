@@ -130,8 +130,14 @@ targets:
         # The EdDSA *public* key. Its private half lives only in the keychain and is what
         # `sign_update` uses at release time; an update not signed by it is refused.
         SUPublicEDKey: "QSxaf8nXmsuwiX9QEK6rHAEYcbC4+tHqWjKhKMzkyq4="
-        # Check daily in the background. Sparkle asks the user before its first check.
         SUEnableAutomaticChecks: true
+        # Hourly, which is also the shortest interval Sparkle allows — its own floor is
+        # 3600 and it clamps anything smaller. Without this key the default is **one day**,
+        # measured from the last check rather than from launch: Sparkle checks at startup
+        # only if a whole interval has already elapsed, so an app opened a few times a week
+        # would routinely sit a day behind a release. At an hour, opening the app is in
+        # practice a check. Measured, see ADR-020 → Scheduling.
+        SUScheduledCheckInterval: 3600
         # For "Open With" in Finder and dragging onto the Dock.
         CFBundleDocumentTypes:
           - CFBundleTypeName: Audio or video file

@@ -699,6 +699,19 @@ build, and `generate_appcast` — which infers a whole feed by scanning a direct
 archives — would be guessing at what the release script already knows exactly.
 `sparkle:version` is the build number, which `release.sh` already increments monotonically.
 
+**Scheduling — measured after the first release, not assumed.** 1.1.2 went up nine minutes
+after 1.1.1, and a machine running 1.1.1 did not offer it until the menu item was used. The
+cause was not a missing first-launch check: Sparkle treats an absent last-check date as
+`distantPast`, decides it is overdue and checks straight away, which it had done — and found
+nothing, because 1.1.1 *was* the newest release at that moment. Having recorded the time, its
+next scheduled look was a day later.
+
+That default is wrong for an app like this. `SUScheduledCheckInterval` is therefore set to
+**3600**, which is also Sparkle's own floor (it clamps anything smaller). The interval is
+counted from the last check rather than from launch, so at an hour, opening the app is in
+practice a check, while opening it twice in one hour politely does not ask GitHub twice.
+`UpdateControllerTests` pins the key, because losing it silently restores the day.
+
 **Consequences.**
 - Releasing now also signs the dmg with the EdDSA key and uploads `appcast.xml`. A release
   made on a machine without that key in its keychain **stops before notarizing**, rather

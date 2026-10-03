@@ -71,4 +71,19 @@ struct UpdateControllerTests {
         #expect(key.count == 44, "SUPublicEDKey does not look like a base64 Ed25519 key")
         #expect(Data(base64Encoded: key)?.count == 32)
     }
+
+    /// Sparkle checks at launch only when a whole interval has already passed, and its
+    /// default interval is a day — which meant an app opened a few times a week would sit a
+    /// day behind a release. 3600 is Sparkle's own floor, so it is the most responsive legal
+    /// value; without the key the day comes back (ADR-020 → Scheduling).
+    @Test("The bundle asks for hourly checks, not Sparkle's daily default")
+    func checkIntervalIsHourly() throws {
+        let bundle = Bundle(for: AppState.self)
+        let interval = try #require(
+            bundle.object(forInfoDictionaryKey: "SUScheduledCheckInterval") as? Double,
+            "SUScheduledCheckInterval is missing — checks would fall back to once a day")
+
+        #expect(interval == 3600)
+        #expect(bundle.object(forInfoDictionaryKey: "SUEnableAutomaticChecks") as? Bool == true)
+    }
 }
