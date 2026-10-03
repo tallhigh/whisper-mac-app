@@ -137,7 +137,15 @@ Rules:
   in `docs/DECISIONS.md` → ADR-014.
 - Most of the option keys are **never sent at all** by the v1 interface; for every
   key that isn't sent, the worker applies the command-line default (ADR-015). The
-  protocol still carries them.
+  protocol still carries them. Exactly two are sent: `fp16`, to stop whisper warning
+  on the CPU, and `threads`.
+- `options.threads` is a **resource limit, not a decoding parameter**. The worker
+  passes it to `torch.set_num_threads()` and to ffmpeg's `-threads`. Absent or `0`
+  means "leave the defaults alone"; any other value caps both. It changes how long a
+  run takes and never what it produces, which was measured rather than assumed
+  (ADR-018) — so unlike a decoding key, sending it does not threaten CLI equivalence.
+  The child process's scheduling priority goes with it, but that is set by the app
+  when it spawns the worker and is deliberately **not** part of this protocol.
 - A `null` value means "use whisper's default"; the worker does **not** pass those
   through to the `transcribe()` call.
 - Unknown keys are ignored silently on the worker side (forward compatibility).

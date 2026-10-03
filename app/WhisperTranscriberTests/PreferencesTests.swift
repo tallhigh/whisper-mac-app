@@ -25,6 +25,10 @@ struct SettingsPersistenceTests {
         #expect(settings.task == .translate)
         #expect(settings.outputFormats == [.srt])
         #expect(settings.overwrite)
+        // Added after this block was written, so it has to come back as the default rather
+        // than resetting everything else (ADR-013). `"threads":8` above is the unrelated
+        // removed advanced key, and is still ignored.
+        #expect(settings.cpuBudget == .balanced)
     }
 
     @Test("A completely empty block gives every default")
@@ -72,12 +76,16 @@ struct SimplifiedJobTests {
     /// The project's core correctness claim: the decoding keys are **not sent**, and the
     /// worker applies the CLI-equivalence defaults. If a key leaked through, the output
     /// could diverge from the command line's.
+    ///
+    /// `threads` is deliberately absent from this list. It is a resource limit rather than a
+    /// decoding parameter — it changes how long a run takes, never what it produces, which
+    /// was measured before it was sent (ADR-018).
     @Test("The decoding options are not written into the job definition")
     func decodingOptionsAreOmitted() throws {
         let json = try payload(WhisperSettings())
 
         for key in [
-            "beam_size", "best_of", "temperature", "initial_prompt", "threads",
+            "beam_size", "best_of", "temperature", "initial_prompt",
             "word_timestamps", "no_speech_threshold", "logprob_threshold",
             "compression_ratio_threshold", "condition_on_previous_text",
         ] {

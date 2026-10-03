@@ -107,6 +107,46 @@ def test_output_is_identical_to_the_cli(tmp_path):
     assert worker_txt == cli_txt
 
 
+def test_a_thread_limit_does_not_change_the_output(tmp_path):
+    """The CPU limit must not cost correctness.
+
+    Limiting torch's threads changes the order floating-point reductions happen in, so it
+    could in principle flip a token and break the CLI equivalence above. Measured before the
+    setting was shipped: the same fixture gave a byte-identical .txt at 2, 3, 4 and unlimited
+    threads (ADR-018). This pins the two the app actually sends.
+    """
+    audio = requires_fixture("speech.m4a")
+    produced = {}
+
+    for label, threads in [("unlimited", 0), ("limited", 2)]:
+        out = tmp_path / label
+        out.mkdir()
+        events = _run_worker(
+            {
+                "v": 1,
+                "job_id": label,
+                "input_path": str(audio),
+                "output_dir": str(out),
+                "output_formats": ["txt"],
+                "model": MODEL,
+                "model_dir": str(pathlib.Path(os.path.expanduser("~")) / ".cache" / "whisper"),
+                "language": LANGUAGE,
+                "task": "transcribe",
+                "device": "cpu",
+                "options": {"threads": threads},
+                "writer_options": {},
+                "overwrite": True,
+                "emit_segments": False,
+            }
+        )
+        assert not [e for e in events if e["type"] == "error"], events[-1]
+        produced[label] = (out / "speech.txt").read_bytes()
+
+    assert produced["limited"] == produced["unlimited"], (
+        "a thread limit changed the transcript, which breaks CLI equivalence"
+    )
+
+
 def test_event_order_honours_the_contract(tmp_path):
     audio = requires_fixture("speech.m4a")
     events = _run_worker(

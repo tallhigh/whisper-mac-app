@@ -51,6 +51,22 @@ struct EngineCapabilities: Decodable, Equatable, Sendable {
         modelsBytes?.values.reduce(0, +) ?? 0
     }
 
+    /// Roughly how much memory transcribing with `model` will need at its peak, or `nil` when
+    /// the model hasn't been downloaded and its size is therefore unknown.
+    ///
+    /// Estimated from the **file size the worker reported** instead of a hand-written table
+    /// per model, so a model added by a later whisper version is covered without a code
+    /// change — the same reason the worker refuses to tabulate sizes it hasn't measured.
+    ///
+    /// `baseline + 2.5 × fileSize`, fitted to three measurements on an M4 (ADR-018):
+    /// small 461 MB → 2.10 GB, medium 1.4 GB → 4.38 GB, large-v3-turbo 1.5 GB → 4.64 GB.
+    /// The baseline is Python plus torch, which is there whichever model is loaded.
+    func estimatedPeakBytes(for model: String) -> Int64? {
+        guard let fileBytes = modelsBytes?[model] else { return nil }
+        let baseline: Int64 = 1_000_000_000
+        return baseline + Int64(Double(fileBytes) * 2.5)
+    }
+
     var supportsMPS: Bool { devices.contains("mps") }
 
     /// The language list to show in the interface: "detect automatically" first, then the

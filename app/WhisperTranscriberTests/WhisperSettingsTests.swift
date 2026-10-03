@@ -70,11 +70,16 @@ struct JobPayloadTests {
     /// A Phase 1 finding: the CLI does beam search with `beam_size`/`best_of` = 5 while the
     /// library does greedy decoding. The **worker** applies those now; the job definition
     /// carries no decoding key at all (ADR-015).
+    ///
+    /// The whole point is that `options` holds nothing that could change the transcript, so
+    /// this asserts the full set rather than a list of forbidden names: `fp16` to silence a
+    /// CPU warning, and `threads`, which is a resource limit (ADR-018).
     @Test("The decoding keys are not sent, the worker applies the default")
     func decodingOptionsOmitted() throws {
         let options = try #require(try payloadJSON(WhisperSettings())["options"] as? [String: Any])
 
-        for key in ["beam_size", "best_of", "temperature", "initial_prompt", "threads"] {
+        #expect(Set(options.keys) == ["fp16", "threads"])
+        for key in ["beam_size", "best_of", "temperature", "initial_prompt"] {
             #expect(options[key] == nil, "\(key)")
         }
     }

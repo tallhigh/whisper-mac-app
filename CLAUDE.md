@@ -106,6 +106,10 @@ Where the rule lands in practice:
    interface and are not sent; CLI equivalence is provided single-handedly by
    `_CLI_PARITY_DEFAULTS` in the worker (ADR-015). The protocol still carries them — if an
    "expert mode" is added, filling the fields on the Swift side is enough.
+   `options` is asserted as a **closed set** of exactly two keys, neither of which can
+   change the transcript: `fp16` (silences a CPU warning) and `threads` (a resource limit,
+   ADR-018). Before adding a third, establish by measurement that it cannot alter the
+   output — a key that can belongs behind an expert mode, not in the default job.
 
 ## Directory layout
 

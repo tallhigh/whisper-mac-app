@@ -30,12 +30,13 @@ pinned permanently by `test_output_is_identical_to_the_cli`.
 | UI control | CLI | Worker field | Default | Note |
 |---|---|---|---|---|
 | **Model** (dropdown) | `--model` | `model` | `small` | The list comes from `whisper._MODELS`. Downloaded models show their on-disk size, the others show ⬇︎ — whisper doesn't report the size before downloading and we don't invent one (see `docs/PROTOCOL.md` → `models_bytes`). |
-| **Language** (searchable list) | `--language` | `language` | `tr` | `whisper.tokenizer.LANGUAGES` (99 languages) plus "detect automatically" (`null`) at the top. The UI shows the names in its own language, the worker receives the ISO code. |
+| **Language** (searchable list) | `--language` | `language` | `tr` | `whisper.tokenizer.LANGUAGES` (100 languages) plus "detect automatically" (`null`) at the top. The UI shows the names in its own language, the worker receives the ISO code. |
 | **Task** (segmented control) | `--task` | `task` | `transcribe` | `transcribe` = write it out in the same language, `translate` = translate into English. |
 | **Output format** (multiple selection) | `--output_format` | `output_formats` | `["txt"]` | Multiple selection; the formats are listed explicitly rather than using `all`. On top of whisper's five there is `notes` — see below. |
 | **Output folder** | `--output_dir` | `output_dir` | the input file's folder | A choice between "next to the source file" and "a specific folder". |
 | **Model folder** | `--model_dir` | `model_dir` | `~/.cache/whisper` | The user's existing 4.8 GB of models lives here. |
 | **Device** | `--device` | `device` | `cpu` | `mps` is marked experimental. Not on the main panel but under **Settings → Runtime environment**: it isn't something that changes per job. |
+| **CPU use** | `--threads` | `options.threads` | `balanced` | Three budgets (ADR-018). It also sets the child process's quality of service, which is **not** in the protocol. Measured: it changes the run time and never the output. |
 
 ## Parameters **not** in the interface
 
@@ -44,7 +45,7 @@ The v1 interface shows only the core controls above. Every decoding parameter �
 `no_speech_threshold`, `compression_ratio_threshold`, `logprob_threshold`,
 `hallucination_silence_threshold`, `initial_prompt`, `carry_initial_prompt`,
 `condition_on_previous_text`, `word_timestamps`, `highlight_words`,
-`max_line_width`, `max_line_count`, `max_words_per_line`, `threads`, `fp16`,
+`max_line_width`, `max_line_count`, `max_words_per_line`, `fp16`,
 `suppress_tokens`, `patience`, `length_penalty`, `clip_timestamps`,
 `prepend_punctuations`, `append_punctuations` — is **not written into the job
 definition**.

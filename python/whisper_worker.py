@@ -283,7 +283,7 @@ def default_model_dir() -> str:
     return os.path.join(os.path.expanduser("~"), ".cache", "whisper")
 
 
-def decode_audio(path: str, ffmpeg: str):
+def decode_audio(path: str, ffmpeg: str, threads: int = 0):
     """Decodes the audio to 16 kHz mono float32.
 
     It does the same job as whisper.load_audio, but calls ffmpeg at a known path rather
@@ -294,8 +294,10 @@ def decode_audio(path: str, ffmpeg: str):
     cmd = [
         ffmpeg,
         "-nostdin",
+        # 0 lets ffmpeg decide, which means every core. The job's thread limit applies here
+        # too: decoding a long file is the other place the machine stalls (ADR-018).
         "-threads",
-        "0",
+        str(threads),
         "-i",
         path,
         "-f",
@@ -749,7 +751,7 @@ def cmd_transcribe() -> int:
     started = time.monotonic()
 
     emit({"type": "status", "phase": "decoding_audio"})
-    audio = decode_audio(job["input_path"], find_ffmpeg())
+    audio = decode_audio(job["input_path"], find_ffmpeg(), threads)
     duration = len(audio) / _SAMPLE_RATE
     emit({"type": "status", "phase": "audio_ready", "duration": round(duration, 3)})
     check_cancelled()

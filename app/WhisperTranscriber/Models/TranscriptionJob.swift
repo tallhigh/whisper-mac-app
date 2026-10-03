@@ -22,6 +22,12 @@ struct TranscriptionJob: Codable, Equatable, Sendable {
     var writerOptions: WriterOptions
     var overwrite: Bool
     var emitSegments: Bool
+    /// **Not part of the protocol** — deliberately absent from `CodingKeys`, so it is never
+    /// encoded. It configures how the child process is *spawned* (its quality of service),
+    /// which is a local concern the worker has no say in; the thread count the worker does
+    /// act on travels properly, inside `options`. It rides along on the job so that a queued
+    /// job keeps the budget that was in effect when it was added, like every other setting.
+    var cpuBudget: CPUBudget = .balanced
 
     enum CodingKeys: String, CodingKey {
         case v
@@ -119,6 +125,9 @@ enum OutputFormat: String, Codable, CaseIterable, Identifiable, Sendable {
 /// not sent means "apply the worker's CLI-equivalence default" (ADR-015).
 struct WhisperOptions: Codable, Equatable, Sendable {
     var fp16: Bool?
+    /// The thread count for torch and ffmpeg. Absent means "leave the defaults alone".
+    /// It changes how long a run takes, never what it produces (ADR-018).
+    var threads: Int?
 }
 
 /// The options passed to whisper's output writers.

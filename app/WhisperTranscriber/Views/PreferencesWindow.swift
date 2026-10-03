@@ -347,6 +347,25 @@ private struct RuntimePreferences: View {
                 .foregroundStyle(.secondary)
             }
 
+            Section("While transcribing") {
+                Picker("CPU use", selection: $state.settings.cpuBudget) {
+                    ForEach(CPUBudget.allCases) { budget in
+                        Text(budget.title).tag(budget)
+                    }
+                }
+                Text(state.settings.cpuBudget.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(
+                    """
+                    This changes how long a transcription takes, never what it produces. \
+                    A running job keeps the setting it started with.
+                    """
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
             Section("Maintenance") {
                 HStack {
                     Button("Health Check") {

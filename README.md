@@ -77,6 +77,13 @@ the recording.
   reveal the finished files in Finder.
 - **Apple Silicon GPU or CPU**, your choice. If the GPU path fails on a file, the
   app retries on the CPU instead of giving up.
+- **A CPU budget**, so a transcription doesn't take the machine over. By default it
+  leaves a fast core free and runs at a lower priority — about 5% slower, and you can
+  keep working. Pick *Background* and it stays on the efficiency cores.
+
+On a Mac with 8 GB of memory, the model matters more than any setting: `small` needs
+about 2 GB while `medium` needs about 4.4 GB, which is where a small Mac starts
+swapping. The app warns you when the model you picked is heavy for your machine.
 
 ### Keyboard shortcuts
 

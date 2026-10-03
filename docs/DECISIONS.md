@@ -479,3 +479,89 @@ So the protection moves from "never" to "only what was asked for":
   whisper re-downloads it on next use. The confirmation says so.
 - `ModelStoreTests` covers the refusals, not just the happy path, including the directory
   impostor and the folder surviving the deletion of the last model.
+
+---
+
+## ADR-018 — A CPU budget for transcription, and a memory warning instead of one
+**Date:** 2026-10-03 · **Status:** accepted · **Refines:** ADR-015
+
+**Context.** On an 8 GB M1 MacBook Pro, transcribing with `medium` made the whole machine
+unusable. The request was a CPU limit, accepting a slower run. Measuring first changed what
+got built, so the numbers are here rather than in a commit message.
+
+**What the measurements said** (M4, 4 performance + 6 efficiency cores, 16 GB; the 24 s
+fixture, `small`, warm page cache):
+
+| threads | time | output |
+|---|---|---|
+| unlimited | 8.2 s | identical |
+| 4 | 8.2 s | identical |
+| 3 | 8.7 s | identical |
+| 2 | 9.7 s | identical |
+
+Three things follow.
+
+1. **A thread limit is cheap.** 3 threads costs about 5%, 2 costs about 18%. "Let it take
+   longer" turns out to be a small price.
+2. **torch already limits itself.** Its default was 4 — the performance-core count, not the
+   10 cores the machine has. Unlimited and 4 are the same run. So the thread count was never
+   the pathology, and a budget has to go *below* the P-core count to do anything.
+3. **The transcript does not change.** This mattered more than the timings: thread count
+   changes the order floating-point reductions happen in, so it could have flipped a token
+   and broken the project's central claim. It did not, at any count, and
+   `test_a_thread_limit_does_not_change_the_output` now pins it.
+
+Peak memory, same fixture, measured with `ru_maxrss`:
+
+| model | file | peak RSS | time |
+|---|---|---|---|
+| `small` | 461 MB | 2.10 GB | 8.3 s |
+| `medium` | 1.4 GB | 4.38 GB | 24.4 s |
+| `large-v3-turbo` | 1.5 GB | 4.64 GB | 10.7 s |
+
+**This is the actual cause of the reported problem.** `medium` wants 4.4 GB on a machine
+with 8 GB, where macOS wants about 3 GB of its own; it swaps, and swapping is what the user
+felt. No CPU limit fixes that. (`large-v3-turbo` is also worth noting: the same memory as
+`medium` for 2.3× the speed.)
+
+**Decision.** Both, because they answer different halves.
+
+*The budget* is `CPUBudget` — `full`, `balanced` (the default), `light` — with two levers:
+
+- `options.threads`, which the worker gives to `torch.set_num_threads()` and now to ffmpeg
+  as well, since `-threads 0` had let decoding take every core too. It is also exported as
+  `OMP_NUM_THREADS` and friends, because those pools size themselves when torch is imported,
+  before the worker has read the job.
+- `Process.qualityOfService`: `.utility` for balanced, `.background` for light. This is the
+  lever that actually keeps the interface smooth, because on Apple Silicon it steers the work
+  onto the efficiency cores. It is **not** in the protocol — it describes how the app spawns
+  a child process, which is no business of the worker's — so it rides on `TranscriptionJob`
+  as a field deliberately left out of `CodingKeys`.
+
+Thread counts come from `hw.perflevel0.physicalcpu`, not from a constant: `balanced` leaves
+one performance core free, `light` takes half of them. On both an M1 and a base M4 that is 3
+and 2.
+
+*The warning* appears when a model's estimated peak exceeds half the installed memory. The
+estimate is `1.0 GB + 2.5 × the model's file size`, fitted to the three measurements above
+and accurate to within 1% on all of them. It is computed from the size the worker already
+reports rather than a table of models, for the same reason the worker refuses to tabulate
+sizes it has not measured: a table would quietly go stale at the next whisper release.
+
+**Why `threads` in `options` does not contradict ADR-015.** ADR-015 keeps *decoding*
+parameters out of the job definition so that CLI equivalence is defined in exactly one
+place. `threads` is a resource limit: it changes how long a run takes and never what it
+produces, which is now measured rather than assumed. `options` is therefore asserted as a
+closed set — `{fp16, threads}` — rather than a list of forbidden names, so a real decoding
+key leaking in still fails the test.
+
+**Consequences.**
+- The default changed. A transcription now runs at utility priority with one core free, so
+  it is about 5% slower than before and the Mac stays usable. `full` restores the old
+  behaviour.
+- `light` uses background QoS, which macOS throttles hard. That is the point, but it means
+  a long file can take considerably longer than the 18% the thread count alone suggests.
+- The memory estimate is only available for downloaded models, because an undownloaded one
+  has no reported size. No size, no warning.
+- The measured numbers are from one machine. They are a guide to the shape of the problem,
+  not a promise about every Mac.

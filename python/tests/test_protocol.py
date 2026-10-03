@@ -389,6 +389,36 @@ def test_audio_decoding_classifies_an_ffmpeg_error(tmp_path, monkeypatch):
         ww.decode_audio(str(tmp_path / "x.m4a"), "/bin/false")
 
 
+def test_audio_decoding_passes_the_thread_limit_to_ffmpeg(tmp_path, monkeypatch):
+    """The CPU limit has to reach ffmpeg too: decoding a long file is the other place the
+    machine stalls (ADR-018). ffmpeg's own default, -threads 0, means every core."""
+    seen = {}
+
+    def fake_run(cmd, **_kwargs):
+        seen["cmd"] = cmd
+        return type("P", (), {"returncode": 0, "stdout": b"\x00\x01" * 100, "stderr": b""})
+
+    monkeypatch.setattr(ww.subprocess, "run", fake_run)
+    ww.decode_audio(str(tmp_path / "x.m4a"), "/bin/true", threads=3)
+
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("-threads") + 1] == "3"
+
+
+def test_audio_decoding_leaves_ffmpeg_unlimited_without_a_limit(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **_kwargs):
+        seen["cmd"] = cmd
+        return type("P", (), {"returncode": 0, "stdout": b"\x00\x01" * 100, "stderr": b""})
+
+    monkeypatch.setattr(ww.subprocess, "run", fake_run)
+    ww.decode_audio(str(tmp_path / "x.m4a"), "/bin/true")
+
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("-threads") + 1] == "0"
+
+
 def test_audio_decoding_catches_empty_output(tmp_path, monkeypatch):
     def fake_run(*_args, **_kwargs):
         return type("P", (), {"returncode": 0, "stdout": b"", "stderr": b""})

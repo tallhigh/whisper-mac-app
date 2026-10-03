@@ -48,7 +48,7 @@ actor PythonWhisperEngine: TranscriptionEngine, LiveTranscriptionEngine {
         let result = LockedBox<EngineEvent.TranscriptionResult>()
         let failure = LockedBox<EngineEvent.EngineFailure>()
 
-        try await run(mode: "transcribe", standardInput: payload) { event in
+        try await run(mode: "transcribe", standardInput: payload, budget: job.cpuBudget) { event in
             switch event {
             case .result(let value): result.set(value)
             case .failure(let value): failure.set(value)
@@ -120,6 +120,7 @@ actor PythonWhisperEngine: TranscriptionEngine, LiveTranscriptionEngine {
     private func run(
         mode: String,
         standardInput: String?,
+        budget: CPUBudget = .full,
         onEvent: @Sendable @escaping (EngineEvent) -> Void
     ) async throws {
         guard
@@ -135,7 +136,13 @@ actor PythonWhisperEngine: TranscriptionEngine, LiveTranscriptionEngine {
         let process = Process()
         process.executableURL = layout.venvPython
         process.arguments = [worker.path, mode]
-        process.environment = ProcessRunner.baseEnvironment()
+        // The thread limit is also set in the environment, not only through
+        // `torch.set_num_threads()`: the OpenMP and BLAS pools size themselves when torch is
+        // imported, which happens before the worker reads the job (ADR-018).
+        process.environment = ProcessRunner.baseEnvironment(extra: budget.threadEnvironment)
+        // What actually keeps the interface smooth. `.utility` and `.background` tell the
+        // scheduler the work can wait, and on Apple Silicon steer it to the efficiency cores.
+        process.qualityOfService = budget.qualityOfService
 
         let outPipe = Pipe()
         let errPipe = Pipe()

@@ -21,6 +21,9 @@ struct WhisperSettings: Codable, Equatable, Sendable {
     var modelDirectory: URL?
     var device: Device = .cpu
     var overwrite: Bool = false
+    /// How much of the machine a run may take — ADR-018. Defaults to leaving a core free:
+    /// the cost is about 5% and it is what keeps the Mac usable while transcribing.
+    var cpuBudget: CPUBudget = .balanced
 
     enum OutputLocation: String, Codable, CaseIterable, Identifiable, Sendable {
         case besideSource
@@ -59,7 +62,8 @@ struct WhisperSettings: Codable, Equatable, Sendable {
             options: whisperOptions,
             writerOptions: WriterOptions(),
             overwrite: overwrite,
-            emitSegments: true
+            emitSegments: true,
+            cpuBudget: cpuBudget
         )
     }
 
@@ -90,7 +94,10 @@ struct WhisperSettings: Codable, Equatable, Sendable {
     /// **deliberately absent**: their absence means "apply the CLI default"
     /// (`docs/WHISPER_OPTIONS.md` → `null` semantics).
     private var whisperOptions: WhisperOptions {
-        WhisperOptions(fp16: device == .cpu ? false : nil)
+        // `threads` is the one resource limit in the options; 0 means "leave torch alone", so
+        // it stays absent from the JSON rather than being sent as a zero.
+        let threads = cpuBudget.threads
+        return WhisperOptions(fp16: device == .cpu ? false : nil, threads: threads > 0 ? threads : nil)
     }
 }
 
@@ -107,6 +114,27 @@ extension WhisperSettings {
                 .init(
                     symbol: "arrow.down.circle",
                     text: String(localized: "\(model) will be downloaded. The first run may be slow.")
+                )
+            )
+        }
+
+        // Memory, not CPU, is what makes a big model painful on a small Mac: medium peaks at
+        // about 4.4 GB, which on an 8 GB machine means swapping while macOS wants its own
+        // 3 GB. The threshold is half the installed memory — generous enough that a 16 GB
+        // Mac is never nagged about medium, strict enough that an 8 GB one is (ADR-018).
+        if let capabilities, let peak = capabilities.estimatedPeakBytes(for: model),
+            peak > MachineCapacity.physicalMemory / 2
+        {
+            let peakLabel = ByteCountFormatter.string(fromByteCount: peak, countStyle: .memory)
+            let ramLabel = ByteCountFormatter.string(
+                fromByteCount: MachineCapacity.physicalMemory, countStyle: .memory)
+            warnings.append(
+                .init(
+                    symbol: "memorychip",
+                    text: String(
+                        localized:
+                            "\(model) needs around \(peakLabel) of memory and this Mac has \(ramLabel). A smaller model will be far quicker here."
+                    )
                 )
             )
         }
@@ -208,7 +236,7 @@ extension WhisperSettings {
     /// to disk, renaming a field silently drops the user's setting.
     enum CodingKeys: String, CodingKey {
         case model, language, task, outputFormats, outputLocation, customOutputDirectory
-        case modelDirectory, device, overwrite
+        case modelDirectory, device, overwrite, cpuBudget
     }
 
     /// Decodes, filling missing keys with their defaults.
@@ -235,6 +263,7 @@ extension WhisperSettings {
         modelDirectory = container.optional(URL.self, .modelDirectory)
         device = container.value(.device, fallback.device)
         overwrite = container.value(.overwrite, fallback.overwrite)
+        cpuBudget = container.value(.cpuBudget, fallback.cpuBudget)
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -248,6 +277,7 @@ extension WhisperSettings {
         try container.encodeIfPresent(modelDirectory, forKey: .modelDirectory)
         try container.encode(device, forKey: .device)
         try container.encode(overwrite, forKey: .overwrite)
+        try container.encode(cpuBudget, forKey: .cpuBudget)
     }
 }
 

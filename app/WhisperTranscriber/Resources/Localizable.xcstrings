@@ -35,6 +35,16 @@
     "%@ is not supported" : {
 
     },
+    "%@ needs around %@ of memory and this Mac has %@. A smaller model will be far quicker here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ needs around %2$@ of memory and this Mac has %3$@. A smaller model will be far quicker here."
+          }
+        }
+      }
+    },
     "%@ will be downloaded. The first run may be slow." : {
 
     },
@@ -73,7 +83,20 @@
         }
       }
     },
+    "%lld of %lld fast cores, at a lower priority. About 5%% slower." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld fast cores, at a lower priority. About 5%% slower."
+          }
+        }
+      }
+    },
     "%lld percent" : {
+
+    },
+    "%lld threads on the efficiency cores. Clearly slower, and barely noticeable while it runs." : {
 
     },
     "%lld/%lld · %@" : {
@@ -122,10 +145,16 @@
     "Audio recordings are written here; an existing file is never overwritten." : {
 
     },
+    "Background" : {
+
+    },
     "Beside the source file" : {
 
     },
     "Both sides of the call" : {
+
+    },
+    "CPU use" : {
 
     },
     "Cancel" : {
@@ -264,6 +293,9 @@
     "Environment" : {
 
     },
+    "Every core, same priority as the app. Fastest, and you will feel it." : {
+
+    },
     "Finish" : {
 
     },
@@ -274,6 +306,9 @@
 
     },
     "Format" : {
+
+    },
+    "Full speed" : {
 
     },
     "General" : {
@@ -304,6 +339,9 @@
 
     },
     "Language" : {
+
+    },
+    "Leave the Mac usable" : {
 
     },
     "Linking ffmpeg" : {
@@ -713,6 +751,9 @@
     "These files already exist:" : {
 
     },
+    "This changes how long a transcription takes, never what it produces. A running job keeps the setting it started with." : {
+
+    },
     "This file is waiting in the queue." : {
 
     },
@@ -769,6 +810,9 @@
 
     },
     "When recording stops, the file joins the queue and is transcribed as usual." : {
+
+    },
+    "While transcribing" : {
 
     },
     "Whisper Transcriber" : {
