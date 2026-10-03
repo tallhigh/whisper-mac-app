@@ -4,9 +4,10 @@
 #   scripts/release_notes.sh 0.1.0 > dist/RELEASE_NOTES.md
 #
 # A version can opt out of the changelog by committing docs/release-notes/vX.Y.Z.md;
-# that file is then used verbatim in place of the commit sections. v1.0.0 does this,
-# because a first release has no previous version to list changes against — it
-# describes what the app does instead.
+# that file is then used verbatim in place of the commit sections. v1.0.0 does this
+# because a first release has no previous version to list changes against — it describes
+# what the app does instead; v1.5.0 does it because its commit subjects do not carry the
+# story. Most versions leave the file out.
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 

@@ -260,11 +260,13 @@ the directory.
   commit at v1.0.0, so every subject from here on reaches a release page.
 - Version tags are `vX.Y.Z`; `make release` creates the tag itself, so don't `git tag` by
   hand.
-- **Release notes are the changelog, except for v1.0.0.** A version can override the
-  generated sections by committing `docs/release-notes/vX.Y.Z.md`, which is then used
-  verbatim; v1.0.0 does that because a first release has nothing to list changes against and
-  describes the app's features instead. Later versions leave the file out and get the
-  changelog.
+- **Release notes are the changelog by default.** A version can override the generated
+  sections by committing `docs/release-notes/vX.Y.Z.md`, which is then used verbatim. v1.0.0
+  does that because a first release has nothing to list changes against and describes the
+  app's features instead. A later version hand-writes the file only when the commit subjects
+  cannot carry the story: v1.5.0 does, because "fix: capture system audio by app" does not
+  tell a user that live transcription had never once worked while recording system audio.
+  Otherwise leave the file out and take the changelog.
 - End commit messages with this line:
   `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
 
