@@ -5,6 +5,12 @@ import SwiftUI
 struct WhisperTranscriberApp: App {
     @State private var state = AppState()
     @State private var updates = UpdateController()
+
+    /// `MenuBarExtra` wants a binding, but whether the app is busy is derived, not stored —
+    /// so this reads and discards writes.
+    private var busy: Binding<Bool> {
+        Binding(get: { state.activity.isBusy }, set: { _ in })
+    }
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
@@ -53,6 +59,18 @@ struct WhisperTranscriberApp: App {
                 RecordingsMenuItem()
             }
         }
+
+        // The system menu bar, so "is it still recording?" is answerable without finding
+        // the window (ADR-023). `isInserted` keeps it out of the menu bar entirely while
+        // nothing is happening: a permanent icon for an app used in bursts is clutter.
+        MenuBarExtra(isInserted: busy) {
+            MenuBarStatusMenu()
+                .environment(state)
+        } label: {
+            MenuBarStatusLabel()
+                .environment(state)
+        }
+        .menuBarExtraStyle(.menu)
 
         // The recordings already on disk — ADR-021. A window rather than a pane: the queue
         // is what is running now, this is what happened before.

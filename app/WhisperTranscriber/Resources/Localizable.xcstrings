@@ -112,6 +112,9 @@
     "%lld threads on the efficiency cores. Clearly slower, and barely noticeable while it runs." : {
 
     },
+    "%lld waiting" : {
+
+    },
     "%lld/%lld · %@" : {
       "localizations" : {
         "en" : {
@@ -333,6 +336,9 @@
     "Finish" : {
 
     },
+    "Finish Recording" : {
+
+    },
     "Finishing the live text…" : {
 
     },
@@ -355,6 +361,9 @@
 
     },
     "Health Check" : {
+
+    },
+    "Idle" : {
 
     },
     "If you quit, the running job will be cancelled." : {
@@ -498,6 +507,9 @@
     "Open Privacy Settings" : {
 
     },
+    "Open Whisper Transcriber" : {
+
+    },
     "Output" : {
 
     },
@@ -517,6 +529,9 @@
 
     },
     "Pause" : {
+
+    },
+    "Paused — %@" : {
 
     },
     "Plain text" : {
@@ -568,6 +583,9 @@
 
     },
     "Recording the manifest" : {
+
+    },
+    "Recording — %@" : {
 
     },
     "Recordings" : {
@@ -857,6 +875,19 @@
     "Transcribe Again" : {
 
     },
+    "Transcribing %@" : {
+
+    },
+    "Transcribing %@ — %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Transcribing %1$@ — %2$lld%%"
+          }
+        }
+      }
+    },
     "Transcription" : {
 
     },
@@ -910,6 +941,9 @@
 
     },
     "Whisper Transcriber takes notes on this Mac — no bot joins your calls and no audio leaves the machine. To do that it installs an isolated Python environment of its own." : {
+
+    },
+    "Whisper Transcriber, idle" : {
 
     },
     "With this off, only audio is recorded; the text is produced afterwards" : {

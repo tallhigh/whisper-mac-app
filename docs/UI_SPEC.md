@@ -181,6 +181,23 @@ for confirmation; both state explicitly that they do not touch the user's model 
 The "on disk" row is computed by walking the directory tree, so it runs once when the
 tab is opened, and inside an actor.
 
+## Menu bar item
+
+Present in the system menu bar **only while something is happening** (ADR-023), which makes
+its presence the first piece of information:
+
+| State | Menu bar | Menu |
+|---|---|---|
+| Recording | ⏺ `12:34` | *Recording — 12:34* · Finish Recording · Pause |
+| Paused | ⏸ `12:34` | *Paused — 12:34* · Finish Recording · Resume |
+| Finishing | ⋯ | *Finishing the live text…* |
+| Transcribing | ◍ `42%` | *Transcribing meeting.m4a — 42%* · Stop |
+| Idle | *(absent)* | — |
+
+The elapsed time and the percentage use monospaced digits, or the menu bar shifts every second
+as the clock counts up. The menu also shows how many jobs are waiting, and ends with **Open
+Whisper Transcriber** and **Recordings**.
+
 ## Recordings window (⇧⌘L)
 
 A window of its own, not a pane — the queue is what is running now, this is what happened

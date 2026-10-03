@@ -806,3 +806,48 @@ changed without a measurement to justify it.
   clears, which is what that window watches `isFinalizing` for.
 - `LiveSession.finish()` still exists as `requestStop()` + `awaitExit()`, so the old
   all-in-one behaviour is available where blocking is correct.
+
+---
+
+## ADR-023 — A menu bar item, present only while something is happening
+**Date:** 2026-10-03 · **Status:** accepted
+
+**Context.** Recording and transcribing both continue with the window closed or behind
+something else. "Is it still recording?" meant finding the window, which is the wrong amount
+of work for that question.
+
+**Decision.** A `MenuBarExtra` showing a symbol plus a short piece of text: the elapsed time
+while recording, the percentage while transcribing. Its menu says what is happening in words
+and offers the one or two things worth doing from there — finish, pause, resume, stop — plus
+a way back to the window.
+
+**It is inserted only while the app is busy**, through `MenuBarExtra(isInserted:)`. A
+permanent icon for an app used in bursts is clutter in a strip the user has already filled;
+an icon that appears when work starts and leaves when it ends carries information by its
+presence alone.
+
+**`Activity` is a type, not three booleans read by the view.** The states are mutually
+exclusive and have a precedence: a recording in progress outranks a queue draining behind it,
+and `finalizing` outranks the queue too, because the recording just stopped is still being
+finished (ADR-022). Deciding that in one place is what keeps the menu bar and the toolbar from
+disagreeing about what the app is doing. `AppState.activity` is that place.
+
+**Details that came out of writing it.**
+
+- A running queue with **no active item** still reports `transcribing`, with an empty name.
+  That gap is the moment between two jobs, and reporting idle there would make the item
+  flicker out and back in between queued files.
+- The text is monospaced-digit. Without it the whole menu bar shifts left and right every
+  second as the clock counts up.
+- The percentage is **rounded**, not truncated: 99.9% is 100% to someone watching a bar fill.
+- The symbol is filled while recording and outlined while merely working, so the two read
+  differently at a glance rather than only on inspection.
+
+**Consequences.**
+- One rename: `AppState`'s private `activity` — the `ProcessInfo` token that keeps the Mac
+  awake — became `sleepAssertion`, which is what it actually is. The name was free to take
+  because it was vague for the thing it held.
+- The menu duplicates actions that exist in the window and the main menu. That is the point of
+  a menu bar item; the duplication is not an accident to be factored away.
+- A test asserts no two states share a symbol, because the symbol is the whole message when
+  the text is absent.

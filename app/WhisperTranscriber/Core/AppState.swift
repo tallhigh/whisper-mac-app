@@ -78,7 +78,8 @@ final class AppState {
     private let provisioner: RuntimeProvisioner
     private let engine: PythonWhisperEngine
     private var provisionTask: Task<Void, Never>?
-    private var activity: (any NSObjectProtocol)?
+    /// The power-management token that keeps the Mac awake; `nil` when not held.
+    private var sleepAssertion: (any NSObjectProtocol)?
 
     struct SetupError: Identifiable, Equatable {
         let id = UUID()
@@ -194,6 +195,34 @@ final class AppState {
         } catch {
             capabilitiesError = error.localizedDescription
         }
+    }
+
+    // MARK: - What the app is doing
+
+    /// The one place the app's current activity is decided — ADR-023.
+    ///
+    /// The order is the precedence: a recording in progress is what the user cares about even
+    /// if the queue is draining behind it, and `finalizing` outranks the queue for the same
+    /// reason — the recording they just stopped is still being finished.
+    var activity: Activity {
+        switch recording.state {
+        case .recording: return .recording(elapsed: recording.duration)
+        case .paused: return .paused(elapsed: recording.duration)
+        case .idle, .preparing, .failed: break
+        }
+        if recording.isFinalizing { return .finalizing }
+        if queue.isRunning, let item = runningItem {
+            return .transcribing(name: item.name, fraction: item.fraction)
+        }
+        // `isRunning` with no running item is the moment between jobs; reporting idle there
+        // would make the menu bar item flicker out and back in between queued files.
+        if queue.isRunning { return .transcribing(name: "", fraction: nil) }
+        return .idle
+    }
+
+    /// The job the queue is working on.
+    var runningItem: TranscriptionItem? {
+        queue.items.first { $0.id == queue.activeItemID }
     }
 
     // MARK: - Past recordings
@@ -463,18 +492,18 @@ final class AppState {
 
     /// Keeps the Mac awake during a long transcription.
     private func beginActivity() {
-        guard preferences.keepSystemAwake, activity == nil else { return }
-        activity = ProcessInfo.processInfo.beginActivity(
+        guard preferences.keepSystemAwake, sleepAssertion == nil else { return }
+        sleepAssertion = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .idleSystemSleepDisabled],
             reason: "Transcribing audio files"
         )
     }
 
     private func endActivity() {
-        if let activity {
-            ProcessInfo.processInfo.endActivity(activity)
+        if let sleepAssertion {
+            ProcessInfo.processInfo.endActivity(sleepAssertion)
         }
-        activity = nil
+        sleepAssertion = nil
     }
 
     // MARK: - Notification

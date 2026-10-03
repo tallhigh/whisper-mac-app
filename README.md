@@ -130,6 +130,13 @@ On a Mac with 8 GB of memory, the model matters more than any setting: `small` n
 about 2 GB while `medium` needs about 4.4 GB, which is where a small Mac starts
 swapping. The app warns you when the model you picked is heavy for your machine.
 
+### It tells you what it's doing
+
+While a recording or a transcription is running, an item appears in the macOS menu bar with
+the elapsed time or the percentage done — so "is it still going?" is answerable without
+finding the window. Its menu can finish, pause or stop the work from there. When nothing is
+happening the item is gone, rather than sitting in your menu bar doing nothing.
+
 ### Keyboard shortcuts
 
 | Shortcut | Action |
