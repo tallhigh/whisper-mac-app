@@ -109,6 +109,9 @@
         }
       }
     },
+    "A note taker with no bot and no cloud. Recording and transcription both happen on this Mac, and you get back what was said — not a summary of it." : {
+
+    },
     "A specific folder" : {
 
     },
@@ -796,9 +799,6 @@
     "Transcribe" : {
 
     },
-    "Transcribes audio files to text with OpenAI Whisper. Everything happens on this Mac; the audio is never sent to any server." : {
-
-    },
     "Transcription" : {
 
     },
@@ -851,7 +851,7 @@
     "Whisper Transcriber" : {
 
     },
-    "Whisper Transcriber installs an isolated Python environment of its own in order to transcribe audio files." : {
+    "Whisper Transcriber takes notes on this Mac — no bot joins your calls and no audio leaves the machine. To do that it installs an isolated Python environment of its own." : {
 
     },
     "With this off, only audio is recorded; the text is produced afterwards" : {
@@ -906,6 +906,9 @@
 
     },
     "notes" : {
+
+    },
+    "or press ⇧⌘R to take notes from a call" : {
 
     },
     "preparing" : {

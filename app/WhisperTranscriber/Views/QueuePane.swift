@@ -41,6 +41,9 @@ struct QueuePane: View {
             Text("m4a · mp3 · wav · mp4 and others")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+            Text("or press ⇧⌘R to take notes from a call")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

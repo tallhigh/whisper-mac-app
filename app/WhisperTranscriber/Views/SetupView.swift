@@ -40,8 +40,9 @@ struct SetupView: View {
         VStack(spacing: 20) {
             Text(
                 """
-                Whisper Transcriber installs an isolated Python environment of its own \
-                in order to transcribe audio files.
+                Whisper Transcriber takes notes on this Mac — no bot joins your calls and \
+                no audio leaves the machine. To do that it installs an isolated Python \
+                environment of its own.
                 """
             )
             .multilineTextAlignment(.center)
@@ -52,6 +53,7 @@ struct SetupView: View {
                 bullet("arrow.down.circle", "About 850 MB to download, 890 MB on disk")
                 bullet("clock", "~1 minute on a fast connection, once only")
                 bullet("lock.shield", "Your system Python and Homebrew are left alone")
+                bullet("wifi.slash", "Works offline once installed — no account, no API key")
                 bullet("folder", layout)
             }
             .frame(maxWidth: 420, alignment: .leading)

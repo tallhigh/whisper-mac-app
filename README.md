@@ -1,15 +1,48 @@
 # Whisper Transcriber
 
-**Turn recordings into text on your Mac. Nothing leaves the machine.**
+**A note taker with no bot, no cloud and no invented summaries.**
 
-A native macOS app that runs OpenAI Whisper locally. Drop in an audio or video
-file and get a transcript — or hit ⇧⌘R and watch the words appear while you speak.
-No terminal, no API key, no account, no upload.
+Every meeting note taker now wants to join your call, upload the recording to a
+server and hand you a summary of things nobody said. This one doesn't. It is a
+native Mac app that records and transcribes on the machine in front of you, and
+gives you back what was actually said — word for word.
 
-### [⬇ Download the latest release](https://github.com/tallhigh/whisper-mac-app/releases/latest)
+No bot in the meeting. No account. No API key. No upload. Works with Wi-Fi off.
 
-Signed with an Apple Developer ID, notarized and stapled, so it opens without a
-Gatekeeper warning. ~19 MB, and it keeps itself up to date from then on.
+### [⬇ Download for Mac](https://github.com/tallhigh/whisper-mac-app/releases/latest)
+
+Apple Developer ID-signed and notarized, so it opens without a Gatekeeper warning.
+~19 MB, and it keeps itself up to date from then on.
+
+---
+
+## Is this a "non-AI" note taker?
+
+Worth answering properly, because it depends on what you mean.
+
+**If you mean no bot, no cloud and no made-up summaries — yes, that is exactly what
+this is.**
+
+- **Nothing joins your meeting.** There is no participant called "Notetaker" in the
+  call, nothing to admit, and nobody else in the room learns a recording is being
+  taken by a third party. You press ⇧⌘R.
+- **Nothing is uploaded.** No server, no account, no API key, no telemetry. Once it
+  is set up, it works offline — turn Wi-Fi off and it behaves identically.
+- **Nothing is summarised, rephrased or invented.** You get a transcript, not an
+  interpretation. No "action items" that nobody agreed to, no confident summary of a
+  conversation it misheard. If you want a summary, you write it, from a record you
+  can trust.
+- **Nothing is trained on your data**, because your data never leaves the Mac.
+
+**If you mean no machine learning anywhere — then no, and here is the honest
+detail.** Turning speech into text uses a neural network: OpenAI's
+[Whisper](https://github.com/openai/whisper), which runs entirely on your own Mac
+from a model file on your own disk. Nobody has built a speech recogniser worth using
+without one.
+
+The distinction that matters is not whether a model is involved. It is whether your
+conversations leave the room, and whether software writes words you never said. On
+both of those, this app is on the side you were looking for.
 
 ---
 
@@ -26,10 +59,12 @@ Audio and video both work: `m4a`, `mp3`, `wav`, `aiff`, `flac`, `ogg`, `opus`,
 `aac`, `caf`, `wma`, `mp4`, `mov`, `m4v`, `mkv`, `webm`, `avi`. Drop a folder and
 the supported files inside it are picked up.
 
-### Record and watch it transcribe live
+### Take notes in a meeting, without joining it
 
 Press ⇧⌘R and recording starts immediately. Text appears about two seconds behind
-your voice — settled words stay put, the tail stays faint until it is final.
+your voice — settled words stay put, the tail stays faint until it is final. Nothing
+is admitted to the call and nobody sees a bot arrive, because there isn't one: the
+Mac records what it is already playing and hearing.
 
 You choose the source:
 
@@ -113,6 +148,22 @@ environment of its own under `~/Library/Application Support/WhisperTranscriber/`
 and uses only that; your system Python, your Homebrew installation and your `PATH`
 are never touched. If you already have Whisper models in `~/.cache/whisper`, it
 uses them as they are and downloads nothing twice.
+
+## How it differs from an AI note taker
+
+|  | A cloud AI note taker | Whisper Transcriber |
+|---|---|---|
+| Joins your meeting | Yes, as a participant | No — nothing to admit |
+| Where the audio goes | Uploaded to a server | Stays on your Mac |
+| Account required | Yes | No |
+| Works offline | No | Yes, once set up |
+| What you get back | A summary, and sometimes a transcript | The transcript, verbatim |
+| Invents things | Sometimes, confidently | It writes down what it heard, nothing more |
+| Per-month cost | Usually | None |
+| Your data trains a model | Read the terms carefully | It never leaves the machine |
+
+The trade is real and worth stating: nothing here writes your summary for you. What
+you get is an accurate record, timestamped, that you can read and act on yourself.
 
 ## Requirements
 

@@ -477,8 +477,8 @@ private struct AboutPreferences: View {
 
             Text(
                 """
-                Transcribes audio files to text with OpenAI Whisper. Everything happens \
-                on this Mac; the audio is never sent to any server.
+                A note taker with no bot and no cloud. Recording and transcription both \
+                happen on this Mac, and you get back what was said — not a summary of it.
                 """
             )
             .multilineTextAlignment(.center)

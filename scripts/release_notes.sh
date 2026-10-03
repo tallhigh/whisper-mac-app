@@ -38,6 +38,12 @@ else
 fi
 
 cat <<'MD'
+### About this app
+
+A note taker for Mac with no bot and no cloud: it records and transcribes on your own
+machine and gives you back what was said, not a summary of it. No account, no API key,
+and it works offline once set up.
+
 ### Installing
 
 1. Download and open the `.dmg`, then drag the app into **Applications**.
