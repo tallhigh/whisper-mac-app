@@ -23,6 +23,11 @@ final class AppState {
     private(set) var capabilitiesError: String?
     /// The last model deletion failure, shown in the Models tab. `nil` once one succeeds.
     private(set) var modelDeleteError: String?
+    /// The model being downloaded from the Models tab, with how far it has got (`nil` while
+    /// the size is still unknown). Only one download runs at a time.
+    private(set) var downloadingModel: String?
+    private(set) var downloadFraction: Double?
+    private(set) var modelDownloadError: String?
     let queue: JobQueue
 
     // MARK: - Recording
@@ -205,6 +210,37 @@ final class AppState {
         } catch {
             modelDeleteError = error.localizedDescription
         }
+        await loadCapabilities()
+    }
+
+    /// Downloads one model on its own, then reads the capabilities again so the list, the
+    /// size and the total pick it up.
+    ///
+    /// Transcribing already fetches a missing model on the way; this exists so a 1.5 GB
+    /// download doesn't have to be tied to a job the user wanted finished now (ADR-019).
+    /// One at a time: a second request while one is running is ignored rather than queued,
+    /// because two downloads would only halve each other's bandwidth.
+    func downloadModel(_ model: String) async {
+        guard downloadingModel == nil else { return }
+        let directory = capabilities?.modelDir ?? WhisperSettings.defaultModelDirectory.path
+
+        downloadingModel = model
+        downloadFraction = nil
+        modelDownloadError = nil
+
+        do {
+            try await engine.downloadModel(model, modelDir: directory) { fraction in
+                Task { @MainActor in
+                    // Guard against a late event from a cancelled run moving the wrong bar.
+                    if self.downloadingModel == model { self.downloadFraction = fraction }
+                }
+            }
+        } catch {
+            modelDownloadError = error.localizedDescription
+        }
+
+        downloadingModel = nil
+        downloadFraction = nil
         await loadCapabilities()
     }
 

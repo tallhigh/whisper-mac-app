@@ -140,6 +140,15 @@ struct MainView: View {
             .help("Preset setting bundles")
         }
 
+        ToolbarItem(placement: .automatic) {
+            // SettingsLink opens the Settings scene itself; driving it by hand through
+            // `showSettingsWindow:` breaks when the window is already open.
+            SettingsLink {
+                Label("Settings", systemImage: "gearshape")
+            }
+            .help("Models, output and the runtime environment (⌘,)")
+        }
+
         ToolbarItem(placement: .status) {
             statusIndicator
         }

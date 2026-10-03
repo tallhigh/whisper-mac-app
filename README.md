@@ -64,9 +64,11 @@ the recording.
 
 ### Set it up the way you work
 
-- **14 Whisper models**, from `tiny` for speed to `large-v3` for accuracy, plus the
-  `turbo` variants. The app shows which ones you already have on disk and how much
-  space each takes, and lets you delete one you no longer want to reclaim the space.
+- **Whisper models**, from `tiny` for speed to `large-v3` for accuracy, plus the
+  `turbo` variants. Size and language are separate choices, so picking *English only*
+  is a deliberate act rather than something you stumble into. Download a model when it
+  suits you instead of waiting for a transcription to fetch it, see what each one takes
+  on disk, and delete one you no longer want.
 - **100 languages**, or let Whisper detect it. The translate task writes the
   transcript in English whatever the source language is.
 - **Presets** — four are built in (Quick note, Meeting notes, High quality,

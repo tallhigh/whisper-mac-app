@@ -36,6 +36,51 @@ actor PythonWhisperEngine: TranscriptionEngine, LiveTranscriptionEngine {
         return value
     }
 
+    // MARK: - Downloading a model
+
+    /// The stdin payload for `download` mode. Deliberately tiny: a download needs a name and
+    /// a folder, and nothing else from the job definition applies.
+    private struct DownloadRequest: Encodable {
+        var v = ProtocolVersion.current
+        var model: String
+        var modelDir: String
+
+        enum CodingKeys: String, CodingKey {
+            case v, model
+            case modelDir = "model_dir"
+        }
+    }
+
+    /// Fetches one model, reporting progress, without transcribing anything.
+    ///
+    /// Not part of `TranscriptionEngine`. A `.pt` file in a model folder is this engine's own
+    /// concept — whisper.cpp would want a ggml file from somewhere else entirely — so this
+    /// follows the precedent `LiveTranscriptionEngine` set and stays off the shared contract
+    /// (ADR-019).
+    ///
+    /// - Parameter onProgress: the fraction downloaded, or `nil` when the size is unknown.
+    func downloadModel(
+        _ model: String,
+        modelDir: String,
+        onProgress: @Sendable @escaping (Double?) -> Void
+    ) async throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(DownloadRequest(model: model, modelDir: modelDir))
+        let payload = String(decoding: data, as: UTF8.self)
+
+        let failure = LockedBox<EngineEvent.EngineFailure>()
+        // A download is not urgent; utility priority keeps it out of the interface's way.
+        try await run(mode: "download", standardInput: payload, budget: .balanced) { event in
+            switch event {
+            case .failure(let value): failure.set(value)
+            case .progress(let progress): onProgress(progress.fraction)
+            default: break
+            }
+        }
+        if let failure = failure.value { throw failure }
+    }
+
     // MARK: - Transcription
 
     @discardableResult

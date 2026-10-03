@@ -172,7 +172,7 @@ copied onto every job added to the queue, this window is not.
 | Tab | Contents |
 |---|---|
 | **General** | Start as soon as a file is added, prevent sleep, confirm on quit, notify on completion, reveal in Finder on completion, the default output folder and "overwrite" |
-| **Models** | The model folder path (`~/.cache/whisper` by default, changeable) and the list of models; downloaded ones show their on-disk size, the others show ⬇︎ and `—`. A downloaded model carries a **trash button** that asks for confirmation, names the space it frees and then deletes that one file (ADR-017). The folder itself is never removed and there is no "delete all". |
+| **Models** | The model folder path (`~/.cache/whisper` by default, changeable) and the list of models; downloaded ones show their on-disk size, the others show ⬇︎ and `—`. Each row carries the one action that applies to it: a **trash button** for a downloaded model, which asks for confirmation and names the space it frees (ADR-017), a **download button** for one that isn't, and a progress bar for the download in flight (ADR-019). The folder itself is never removed, there is no "delete all", and one download runs at a time. |
 | **Runtime** | The Python/whisper/torch/imageio-ffmpeg versions read from `runtime.json`, the installation date, how much disk it occupies, the install path, **device selection (CPU / MPS experimental)**, the **CPU use** picker (ADR-018), and the `[Health Check]` `[Reinstall…]` `[Delete Environment…]` `[Reveal in Finder]` `[Open Logs]` buttons |
 | **About** | Version plus build number, a short description ("the audio is never sent to any server"), the installed versions, a repository link (hidden when `Info.plist` → `WTRepositoryURL` is empty), and the licence |
 

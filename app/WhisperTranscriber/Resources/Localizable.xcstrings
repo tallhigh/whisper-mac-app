@@ -127,6 +127,9 @@
     "Add Files…" : {
 
     },
+    "All languages" : {
+
+    },
     "All system audio" : {
 
     },
@@ -278,6 +281,12 @@
     "Device" : {
 
     },
+    "Download %@" : {
+
+    },
+    "Download this model now" : {
+
+    },
     "Downloaded models" : {
 
     },
@@ -288,6 +297,9 @@
 
     },
     "Drop audio files here" : {
+
+    },
+    "English only" : {
 
     },
     "Environment" : {
@@ -383,10 +395,16 @@
     "Model folder" : {
 
     },
+    "Model language" : {
+
+    },
     "Models" : {
 
     },
-    "Models are downloaded into this folder. The app only ever removes a model you delete yourself, one at a time; the folder itself is left alone." : {
+    "Models live in this folder. You can fetch one here instead of waiting for a transcription to do it, and delete one you no longer want. Only the models you act on are touched; the folder itself is left alone." : {
+
+    },
+    "Models, output and the runtime environment (⌘,)" : {
 
     },
     "My presets" : {
@@ -567,6 +585,9 @@
 
     },
     "Send a notification" : {
+
+    },
+    "Settings" : {
 
     },
     "Setup could not be verified: %@" : {
@@ -810,6 +831,9 @@
 
     },
     "When recording stops, the file joins the queue and is transcribed as usual." : {
+
+    },
+    "Which weights to use: all languages, or English-only" : {
 
     },
     "While transcribing" : {

@@ -36,7 +36,36 @@ python3 whisper_worker.py capabilities
 
 # 2) Transcription — the job definition arrives on stdin
 python3 whisper_worker.py transcribe
+
+# 3) Live mode — see below, protocol v2
+python3 whisper_worker.py stream
+
+# 4) Fetch one model and exit — the request arrives on stdin
+python3 whisper_worker.py download
 ```
+
+### `download` mode
+
+Transcribing already fetches a missing model on the way, so this mode exists only so the
+interface can fetch one **without** tying a 1.5 GB download to a job the user wanted
+finished now (ADR-019). The request is small — the rest of the job definition does not
+apply:
+
+```json
+{"v": 1, "model": "medium", "model_dir": "/Users/you/.cache/whisper"}
+```
+
+It emits **no event type of its own**: a `hello`, then the same
+`status{phase:"downloading_model"}` and `progress` events a transcription sends, and a
+`log` when the file is ready. Success is a clean exit, failure is an `error` event. Because
+nothing here is new, an older app has nothing to fail to understand and `v` is unchanged.
+
+Two things it deliberately does not do. It does **not** treat an existing file as "already
+downloaded" — an interrupted download leaves a truncated `.pt`, and whisper's own SHA256
+check is what decides whether to fetch again. And the progress events are **throttled to one
+per whole percent**: whisper reads in 8 KB chunks, which unthrottled is about 9 000 events
+for `tiny` and roughly 375 000 for `large-v3`. A download with no `Content-Length` falls
+back to one event per megabyte.
 
 ## Live mode (`stream`) — protocol v2
 

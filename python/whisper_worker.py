@@ -51,6 +51,8 @@ _STREAM_STABLE_MARGIN_SECONDS = 1.0
 _STREAM_MAX_BUFFER_SECONDS = 30.0
 # The tail of the committed text is passed to the next call as context.
 _STREAM_PROMPT_CHARS = 200
+# How often a download with no known total reports: every 1 MB.
+_PROGRESS_BYTE_STEP = 1_000_000
 # The digital-silence gate. 10 s of zeros produces severe hallucination with the small model
 # (even with no_speech_prob at 0.841). Real room noise is far above this threshold, so no
 # speech is filtered out.
@@ -218,6 +220,46 @@ def install_signal_handlers() -> None:
 
 # The active progress receiver. Its signature: (done, total | None) -> None
 _progress_sink = None
+
+
+def _download_progress_sink():
+    """A progress sink for a model download, throttled to one event per whole percent.
+
+    whisper reads the file in 8 KB chunks, so an unthrottled sink emits about 9 000 events
+    for ``tiny`` and roughly 375 000 for ``large-v3`` — more NDJSON than the figure is worth
+    on a pipe the app parses line by line. The last update always goes out, so the bar
+    reaches 100%.
+    """
+    # `None` rather than a number, so the first call is never mistaken for a repeat.
+    last: dict[str, Any] = {"bucket": None, "bytes": None}
+
+    def sink(done, total) -> None:
+        pct = round(100.0 * done / total, 1) if total else None
+        finished = total is not None and done >= total
+
+        if pct is None:
+            # No total to take a percentage of — a server that sent no Content-Length. Throttle
+            # on bytes instead, so an unknown-length download still reports.
+            if last["bytes"] is not None and done - last["bytes"] < _PROGRESS_BYTE_STEP:
+                return
+        else:
+            bucket = int(pct)
+            if bucket == last["bucket"] and not finished:
+                return
+            last["bucket"] = bucket
+
+        last["bytes"] = done
+        emit(
+            {
+                "type": "progress",
+                "phase": "downloading_model",
+                "processed": done,
+                "total": total,
+                "pct": pct,
+            }
+        )
+
+    return sink
 
 
 def _set_progress_sink(sink) -> None:
@@ -410,6 +452,78 @@ def _ffmpeg_version() -> str:
         return first.split()[2]
     except Exception:  # pragma: no cover
         return "?"
+
+
+# ---------------------------------------------------------------------------
+# download
+# ---------------------------------------------------------------------------
+
+
+def cmd_download() -> int:
+    """Downloads one model and nothing else.
+
+    Transcribing already downloads a missing model on the way, but that ties a 1.5 GB
+    download to a job the user wanted finished now. This mode exists so the Models tab can
+    fetch one on its own (ADR-019).
+
+    It emits no event type of its own: the `downloading_model` status and the `progress`
+    events are the same ones a transcription sends, and success is a clean exit. There is
+    therefore nothing new in the protocol for an older app to fail to understand.
+    """
+    job = read_job()
+    name = str(job.get("model") or "")
+    if not name:
+        raise BadJob("No model was given.", "model is empty.")
+
+    model_dir = os.path.expanduser(str(job.get("model_dir") or default_model_dir()))
+
+    import whisper
+
+    available = whisper.available_models()
+    if name not in available:
+        raise BadJob("Unknown model.", f"{name!r} — options: {', '.join(available)}")
+
+    emit(
+        {
+            "type": "hello",
+            "worker": WORKER_VERSION,
+            "python": sys.version.split()[0],
+            "whisper": getattr(whisper.version, "__version__", "?"),
+            "torch": _torch_version(),
+            "device": "cpu",
+        }
+    )
+
+    # No "already there, nothing to do" shortcut on the file merely existing: an interrupted
+    # download leaves a truncated .pt behind, and reporting that as a success would be a lie
+    # that only shows up later as a load failure. `whisper._download` verifies the SHA256 of
+    # an existing file and re-downloads when it does not match, so the decision is left to
+    # it. The cost is hashing a file that is already good, and the Models tab only offers the
+    # button for models it does not have.
+    os.makedirs(model_dir, exist_ok=True)
+    # `whisper._download` reports through the tqdm *class* in the whisper package namespace,
+    # which is the same target `install_patches` replaces for a transcription's download.
+    # Only that one is needed here; the transcribe-module patches have nothing to do.
+    whisper.tqdm = _make_progress_tqdm(whisper.tqdm)
+
+    emit({"type": "status", "phase": "downloading_model", "model": name})
+    _set_progress_sink(_download_progress_sink())
+    try:
+        # The weights are fetched and then dropped again: the point is the file in model_dir,
+        # and holding the model would mean carrying gigabytes for no reason.
+        whisper._download(whisper._MODELS[name], model_dir, in_memory=False)
+    except WorkerCancelled:
+        raise
+    except (OSError, RuntimeError) as exc:
+        if _looks_like_network_error(exc):
+            raise ModelDownloadFailed("The model could not be downloaded.", f"{name}: {exc}") from exc
+        raise
+    finally:
+        _set_progress_sink(None)
+
+    check_cancelled()
+    emit({"type": "log", "level": "info", "message": f"{name} is ready"})
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -633,17 +747,7 @@ def load_model(job: dict[str, Any]):
     cached = os.path.isfile(os.path.join(model_dir, f"{name}.pt"))
     if not cached:
         emit({"type": "status", "phase": "downloading_model", "model": name})
-        _set_progress_sink(
-            lambda done, total: emit(
-                {
-                    "type": "progress",
-                    "phase": "downloading_model",
-                    "processed": done,
-                    "total": total,
-                    "pct": round(100.0 * done / total, 1) if total else None,
-                }
-            )
-        )
+        _set_progress_sink(_download_progress_sink())
     else:
         emit({"type": "status", "phase": "loading_model", "model": name})
 
@@ -1071,8 +1175,8 @@ def cmd_stream() -> int:
 
 def main(argv: list[str]) -> int:
     mode = argv[1] if len(argv) > 1 else ""
-    if mode not in ("capabilities", "transcribe", "stream"):
-        usage = f"{os.path.basename(argv[0])} (capabilities|transcribe|stream)"
+    if mode not in ("capabilities", "transcribe", "stream", "download"):
+        usage = f"{os.path.basename(argv[0])} (capabilities|transcribe|stream|download)"
         emit(
             {
                 "type": "error",
@@ -1091,6 +1195,7 @@ def main(argv: list[str]) -> int:
         "capabilities": cmd_capabilities,
         "transcribe": cmd_transcribe,
         "stream": cmd_stream,
+        "download": cmd_download,
     }
     try:
         return commands[mode]()

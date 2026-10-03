@@ -6,7 +6,9 @@ The real transcription tests live in test_transcribe_real.py.
 
 import io
 import json
+import pathlib
 import time
+from typing import ClassVar
 
 import pytest
 
@@ -281,6 +283,103 @@ def test_an_invalid_mode_is_bad_usage(events):
     error = events.one("error")
     assert error["code"] == "BAD_USAGE"
     assert "summarise" in error["detail"]
+
+
+def test_download_mode_is_a_valid_mode(events, monkeypatch, tmp_path):
+    """`download` fetches one model on its own — ADR-019. It introduces no event type of its
+    own: the status and progress events are a transcription's, and success is a clean exit."""
+    calls = {}
+
+    class FakeWhisper:
+        _MODELS: ClassVar[dict] = {"small": "https://example.invalid/small.pt"}
+        tqdm = object
+
+        class version:
+            __version__ = "20250625"
+
+        @staticmethod
+        def available_models():
+            return ["small", "medium"]
+
+        @staticmethod
+        def _download(url, root, in_memory):
+            calls["url"] = url
+            calls["root"] = root
+            return str(pathlib.Path(root) / "small.pt")
+
+    monkeypatch.setitem(ww.sys.modules, "whisper", FakeWhisper)
+    monkeypatch.setattr(ww, "_make_progress_tqdm", lambda base: base)
+    monkeypatch.setattr(
+        ww.sys, "__stdin__", io.StringIO(json.dumps({"model": "small", "model_dir": str(tmp_path)}))
+    )
+
+    assert ww.main(["whisper_worker.py", "download"]) == 0
+    assert calls["root"] == str(tmp_path)
+    assert calls["url"] == "https://example.invalid/small.pt"
+    assert [e["type"] for e in events.all] == ["hello", "status", "log"]
+    assert events.one("status")["phase"] == "downloading_model"
+
+
+def test_download_mode_refuses_an_unknown_model(events, monkeypatch, tmp_path):
+    class FakeWhisper:
+        _MODELS: ClassVar[dict] = {}
+        tqdm = object
+
+        class version:
+            __version__ = "20250625"
+
+        @staticmethod
+        def available_models():
+            return ["small"]
+
+    monkeypatch.setitem(ww.sys.modules, "whisper", FakeWhisper)
+    monkeypatch.setattr(
+        ww.sys, "__stdin__", io.StringIO(json.dumps({"model": "nope", "model_dir": str(tmp_path)}))
+    )
+
+    assert ww.main(["whisper_worker.py", "download"]) == 1
+    assert events.one("error")["code"] == "BAD_JOB"
+
+
+def test_download_mode_needs_a_model_name(events, monkeypatch):
+    monkeypatch.setattr(ww.sys, "__stdin__", io.StringIO(json.dumps({"model": ""})))
+    assert ww.main(["whisper_worker.py", "download"]) == 1
+    assert events.one("error")["code"] == "BAD_JOB"
+
+
+def test_download_progress_is_throttled_to_whole_percents():
+    """whisper reads in 8 KB chunks: unthrottled, `tiny` emits about 9 000 events and
+    `large-v3` roughly 375 000 (ADR-019)."""
+    seen = []
+    sink = ww._download_progress_sink()
+    original_emit = ww.emit
+    try:
+        ww.emit = lambda event: seen.append(event)
+        total = 8192 * 1000
+        for i in range(1, 1001):
+            sink(8192 * i, total)
+    finally:
+        ww.emit = original_emit
+
+    # One per whole percent, never more, and the last one always lands on 100.
+    assert len(seen) <= 101, len(seen)
+    assert seen[-1]["pct"] == 100.0
+    assert seen[-1]["processed"] == total
+    assert all(e["phase"] == "downloading_model" for e in seen)
+
+
+def test_download_progress_reports_an_unknown_total():
+    seen = []
+    sink = ww._download_progress_sink()
+    original_emit = ww.emit
+    try:
+        ww.emit = lambda event: seen.append(event)
+        sink(1024, None)
+    finally:
+        ww.emit = original_emit
+
+    assert seen[0]["pct"] is None
+    assert seen[0]["total"] is None
 
 
 def test_running_without_a_mode_is_bad_usage(events):

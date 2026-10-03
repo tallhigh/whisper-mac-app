@@ -171,8 +171,9 @@ private struct ModelPreferences: View {
                 }
                 Text(
                     """
-                    Models are downloaded into this folder. The app only ever removes a model \
-                    you delete yourself, one at a time; the folder itself is left alone.
+                    Models live in this folder. You can fetch one here instead of waiting for \
+                    a transcription to do it, and delete one you no longer want. Only the \
+                    models you act on are touched; the folder itself is left alone.
                     """
                 )
                 .font(.caption)
@@ -202,7 +203,7 @@ private struct ModelPreferences: View {
                 }
             }
 
-            if let message = state.modelDeleteError {
+            if let message = state.modelDeleteError ?? state.modelDownloadError {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.red)
@@ -258,9 +259,18 @@ private struct ModelPreferences: View {
             Text(capabilities.sizeLabel(for: model) ?? "—")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
-            // Only a downloaded model can be deleted, so the button is absent rather than
-            // disabled on the rows where it would do nothing.
-            if capabilities.isCached(model) {
+            // Each row offers the one action that applies to it: delete what is here,
+            // fetch what isn't. A row being downloaded shows the bar instead (ADR-019).
+            if state.downloadingModel == model {
+                if let fraction = state.downloadFraction {
+                    ProgressView(value: fraction)
+                        .progressViewStyle(.linear)
+                        .frame(width: 70)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            } else if capabilities.isCached(model) {
                 Button {
                     modelToDelete = model
                 } label: {
@@ -269,6 +279,17 @@ private struct ModelPreferences: View {
                 .buttonStyle(.borderless)
                 .help("Delete this model from the folder")
                 .accessibilityLabel("Delete \(model)")
+            } else {
+                Button {
+                    Task { await state.downloadModel(model) }
+                } label: {
+                    Image(systemName: "arrow.down.circle")
+                }
+                .buttonStyle(.borderless)
+                // One at a time: a second download would only halve the first's bandwidth.
+                .disabled(state.downloadingModel != nil)
+                .help("Download this model now")
+                .accessibilityLabel("Download \(model)")
             }
         }
     }

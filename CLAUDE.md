@@ -195,10 +195,11 @@ the directory.
   worker grows the first-launch download; write the rationale into `docs/DECISIONS.md`.
 - The worker's **stdout is the protocol channel.** Never use a plain `print()` on the
   Python side — go through the `emit(event)` function. Details: `docs/PROTOCOL.md`.
-- The worker is coupled to whisper's internal API at three points:
-  `sys.modules["whisper.transcribe"].tqdm`, `whisper.tqdm` and
-  `whisper.transcribe.make_safe`. When bumping the `openai-whisper` version, verify those
-  three **together** with the CLI equivalence test.
+- The worker is coupled to whisper's internal API at **four** points:
+  `sys.modules["whisper.transcribe"].tqdm`, `whisper.tqdm`,
+  `whisper.transcribe.make_safe`, and `whisper._download` with `whisper._MODELS` (the
+  `download` mode — ADR-019). When bumping the `openai-whisper` version, verify all four
+  **together** with the CLI equivalence test.
 - File paths are user data: make sure the tests include paths with spaces, emoji, Turkish
   characters and NFD unicode.
 

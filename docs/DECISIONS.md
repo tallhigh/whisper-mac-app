@@ -565,3 +565,80 @@ key leaking in still fails the test.
   has no reported size. No size, no warning.
 - The measured numbers are from one machine. They are a guide to the shape of the problem,
   not a promise about every Mac.
+
+---
+
+## ADR-019 — Model size and language are separate controls; a model can be fetched on its own
+**Date:** 2026-10-03 · **Status:** accepted · **Extends:** ADR-017
+
+**Context.** `whisper.available_models()` returns one flat list of fourteen names that mixes
+two independent things:
+
+```
+tiny.en  tiny  base.en  base  small.en  small  medium.en  medium
+large-v1  large-v2  large-v3  large  large-v3-turbo  turbo
+```
+
+A **size** and a **language variant** — `.en` is the English-only build. A single picker
+makes `small.en` look like a peer of `small` rather than a different answer to a different
+question, and picking it for Turkish audio produces nonsense. There was already a warning
+for exactly that mistake, which is the sign the control was wrong rather than the user.
+
+**Decision.** Two pickers: a size, and a model language (*All languages* / *English only*).
+The second is disabled when the chosen size has no `.en` build, which is the case for every
+large model. `settings.model` is still the single composed string, so nothing in the protocol
+or the stored settings changes.
+
+The split is **mechanical**: the size is the name with a trailing `.en` removed, the variant
+is whether that suffix was there. No table of models, so a size a later whisper version adds
+is categorised without a code change — the same principle as reading capabilities instead of
+hard-coding them. `ModelCatalog.resolve` composes a name back and is the only way the two
+pickers write to `settings.model`, because `large-v3` + English-only would otherwise compose
+`large-v3.en`, which does not exist; a test asserts every size/variant pair resolves to a
+name the worker actually reported.
+
+The sizes keep the worker's order rather than being sorted: it lists them smallest first,
+and sorting alphabetically would put `large` before `small`.
+
+**Downloading on demand.** A new worker mode, `download`, fetches one model and exits. It
+introduces **no new event type**: the `downloading_model` status and the `progress` events
+are the ones a transcription already sends, and success is a clean exit. An older app
+therefore has nothing new to fail to understand, and the protocol version is unchanged.
+
+- It is **not** on `TranscriptionEngine`. A `.pt` file in a model folder is this engine's own
+  concept — whisper.cpp would want a ggml file from somewhere else — so it follows the
+  precedent `LiveTranscriptionEngine` set and stays off the shared contract (ADR-003).
+- It uses `whisper._download` and `whisper._MODELS`, a **fourth** coupling to whisper's
+  internals alongside the three in CLAUDE.md. The public `load_model` would also download,
+  but it then loads the weights into memory — 3 GB for `large-v3`, on the machines least able
+  to spare it. Fetching the file without loading it is the point.
+- There is **no "already downloaded, nothing to do" shortcut on the file existing.** An
+  interrupted download leaves a truncated `.pt` behind, and calling that a success is a lie
+  that only surfaces later as a load failure. `whisper._download` verifies the SHA256 of an
+  existing file and re-downloads on a mismatch, so the decision is left to it; this was
+  tested by truncating a complete model and watching it come back.
+- One download at a time. A second request is ignored rather than queued: two downloads
+  would only halve each other's bandwidth.
+
+**Progress is throttled.** whisper reads in 8 KB chunks, so the sink fired about 9 000 times
+for `tiny` — and would fire roughly 375 000 times for `large-v3`, all of it NDJSON the app
+parses line by line. `_download_progress_sink` emits once per whole percent, measured at 102
+events for `tiny`. A download whose server sends no `Content-Length` has no percentage to
+throttle on, so it falls back to one event per megabyte; the first version of this silently
+emitted nothing in that case, which is what the test for an unknown total now prevents.
+The transcription sink is left alone — it updates at 30-second window boundaries and never
+flooded.
+
+**A settings button on the main window.** `SettingsLink`, not a hand-rolled
+`showSettingsWindow:` action, which misbehaves when the window is already open. ⌘, keeps
+working as before.
+
+**Consequences.**
+- The model picker no longer shows fourteen entries; it shows ten sizes, four of which offer
+  a language choice.
+- The aliases `large` and `turbo` remain listed, because knowing they duplicate `large-v3`
+  and `large-v3-turbo` is model knowledge, not structure, and hiding them would mean the
+  hard-coded table this design avoids.
+- The Models tab now has three states per row: a trash button for what is downloaded, a
+  download button for what is not, and a progress bar for the one in flight.
+- Bumping `openai-whisper` now means checking a fourth internal coupling, not three.

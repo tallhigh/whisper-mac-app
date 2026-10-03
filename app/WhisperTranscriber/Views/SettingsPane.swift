@@ -55,12 +55,26 @@ struct SettingsPane: View {
         Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 10) {
             GridRow {
                 Text("Model")
-                Picker("Model", selection: $state.settings.model) {
-                    ForEach(models, id: \.self) { model in
-                        Text(modelLabel(model)).tag(model)
+                // whisper's list mixes size with the .en language variant; the two are offered
+                // separately and the name is composed back (ADR-019).
+                HStack(spacing: 8) {
+                    Picker("Model", selection: modelSizeBinding(state: state)) {
+                        ForEach(sizes, id: \.self) { size in
+                            Text(sizeLabel(size)).tag(size)
+                        }
                     }
+                    .labelsHidden()
+
+                    Picker("Model language", selection: modelVariantBinding(state: state)) {
+                        ForEach(availableVariants, id: \.self) { variant in
+                            Text(variant.title).tag(variant)
+                        }
+                    }
+                    .labelsHidden()
+                    // A size with no English-only weights leaves nothing to choose.
+                    .disabled(availableVariants.count < 2)
+                    .help("Which weights to use: all languages, or English-only")
                 }
-                .labelsHidden()
             }
 
             GridRow {
@@ -195,11 +209,52 @@ struct SettingsPane: View {
         state.capabilities?.sortedLanguages ?? []
     }
 
-    /// `small · 462 MB`, or `medium ⬇︎` if it hasn't been downloaded.
-    private func modelLabel(_ model: String) -> String {
-        guard let capabilities = state.capabilities else { return model }
-        guard let size = capabilities.sizeLabel(for: model) else { return "\(model) ⬇︎" }
-        return "\(model) · \(size)"
+    /// The sizes to offer, derived from the list the worker reported.
+    private var sizes: [String] {
+        ModelCatalog.sizes(in: models)
+    }
+
+    /// The variants the selected size exists in.
+    private var availableVariants: [ModelCatalog.Variant] {
+        let found = ModelCatalog.variants(for: ModelCatalog.size(of: state.settings.model), in: models)
+        return found.isEmpty ? [ModelCatalog.variant(of: state.settings.model)] : found
+    }
+
+    /// Changing the size keeps the variant when the new size has one, and falls back to the
+    /// multilingual weights when it doesn't — `large-v3.en` does not exist.
+    private func modelSizeBinding(state: AppState) -> Binding<String> {
+        Binding(
+            get: { ModelCatalog.size(of: state.settings.model) },
+            set: { newSize in
+                state.settings.model = ModelCatalog.resolve(
+                    size: newSize,
+                    variant: ModelCatalog.variant(of: state.settings.model),
+                    in: self.models
+                )
+            }
+        )
+    }
+
+    private func modelVariantBinding(state: AppState) -> Binding<ModelCatalog.Variant> {
+        Binding(
+            get: { ModelCatalog.variant(of: state.settings.model) },
+            set: { newVariant in
+                state.settings.model = ModelCatalog.resolve(
+                    size: ModelCatalog.size(of: state.settings.model),
+                    variant: newVariant,
+                    in: self.models
+                )
+            }
+        )
+    }
+
+    /// `small · 462 MB`, or `small ⬇︎` when the selected variant of it isn't downloaded yet.
+    private func sizeLabel(_ size: String) -> String {
+        guard let capabilities = state.capabilities else { return size }
+        let model = ModelCatalog.resolve(
+            size: size, variant: ModelCatalog.variant(of: state.settings.model), in: models)
+        guard let bytes = capabilities.sizeLabel(for: model) else { return "\(size) ⬇︎" }
+        return "\(size) · \(bytes)"
     }
 
     private func chooseOutputFolder(state: AppState) {

@@ -1,6 +1,4 @@
-#!/usr/bin/env swift
-// Generates the app icon from a vector — this file is the single source.
-//
+#!/usr/bin/env swift  // Generates the app icon from a vector — this file is the single source.  //
 //   swift scripts/make_icon.swift            # writes the asset catalog
 //   swift scripts/make_icon.swift --preview  # also writes dist/icon-preview.png
 //

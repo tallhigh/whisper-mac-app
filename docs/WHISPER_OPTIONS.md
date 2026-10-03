@@ -29,7 +29,7 @@ pinned permanently by `test_output_is_identical_to_the_cli`.
 
 | UI control | CLI | Worker field | Default | Note |
 |---|---|---|---|---|
-| **Model** (dropdown) | `--model` | `model` | `small` | The list comes from `whisper._MODELS`. Downloaded models show their on-disk size, the others show ⬇︎ — whisper doesn't report the size before downloading and we don't invent one (see `docs/PROTOCOL.md` → `models_bytes`). |
+| **Model** (two dropdowns) | `--model` | `model` | `small` | The list comes from `whisper._MODELS`, split into a **size** and a **model language** (`.en` = English-only) because the flat list conflates them — ADR-019. Downloaded sizes show their on-disk size, the others show ⬇︎; whisper doesn't report the size before downloading and we don't invent one (see `docs/PROTOCOL.md` → `models_bytes`). |
 | **Language** (searchable list) | `--language` | `language` | `tr` | `whisper.tokenizer.LANGUAGES` (100 languages) plus "detect automatically" (`null`) at the top. The UI shows the names in its own language, the worker receives the ISO code. |
 | **Task** (segmented control) | `--task` | `task` | `transcribe` | `transcribe` = write it out in the same language, `translate` = translate into English. |
 | **Output format** (multiple selection) | `--output_format` | `output_formats` | `["txt"]` | Multiple selection; the formats are listed explicitly rather than using `all`. On top of whisper's five there is `notes` — see below. |
