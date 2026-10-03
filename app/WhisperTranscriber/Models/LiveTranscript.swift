@@ -80,7 +80,7 @@ enum LiveTranscriptWriter {
         let stem = audio.deletingPathExtension().lastPathComponent + (suffixed ? liveSuffix : "")
         var written: [URL] = []
 
-        for format in OutputFormat.allCases where settings.outputFormats.contains(format) {
+        for format in formats(for: settings) {
             guard let text = transcript.text(for: format) else { continue }
             let url = directory.appending(path: "\(stem).\(format.fileExtension)")
             do {
@@ -93,5 +93,20 @@ enum LiveTranscriptWriter {
             }
         }
         return written
+    }
+
+    /// The formats the live text is written in: **always `txt`**, plus `notes` when it is
+    /// among the chosen output formats.
+    ///
+    /// Deliberately not filtered by the chosen formats the way the second pass is (ADR-025).
+    /// The live text is the only record of what was heard *while recording* — the accurate
+    /// pass produces different text and cannot reproduce it. Writing nothing because the user
+    /// happens to want subtitles would throw away the one artifact that cannot be made again,
+    /// which is exactly what used to happen with only `srt` and `vtt` ticked.
+    static func formats(for settings: WhisperSettings) -> [OutputFormat] {
+        OutputFormat.allCases.filter { format in
+            guard LiveTranscript.writableFormats.contains(format) else { return false }
+            return format == .txt || settings.outputFormats.contains(format)
+        }
     }
 }

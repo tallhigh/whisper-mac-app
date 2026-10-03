@@ -51,6 +51,9 @@
     "%@ will be downloaded. The first run may be slow." : {
 
     },
+    "%@ · live" : {
+
+    },
     "%@, %lld percent" : {
       "localizations" : {
         "en" : {
@@ -477,7 +480,7 @@
     "No text was produced." : {
 
     },
-    "No transcript was found for this one." : {
+    "No transcript was kept for this one." : {
 
     },
     "No usable microphone was found." : {
@@ -896,6 +899,9 @@
           }
         }
       }
+    },
+    "Transcript" : {
+
     },
     "Transcription" : {
 

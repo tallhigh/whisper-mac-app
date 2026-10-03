@@ -41,6 +41,10 @@ final class AppState {
     /// The transcript of the selected history row, read from disk on selection.
     private(set) var historyText: String?
     private(set) var historyTextError: String?
+    /// The transcripts available for the selected row. The live one and the accurate one are
+    /// both offered, because they are different records of the same recording (ADR-025).
+    private(set) var historyOutputs: [URL] = []
+    private(set) var selectedHistoryOutput: URL?
     let queue: JobQueue
 
     // MARK: - Recording
@@ -214,7 +218,9 @@ final class AppState {
     /// was, with outputs that have since been deleted filtered out.
     func historyEntries() -> [HistoryEntry] {
         JobHistory.refreshed(
-            JobHistory.merged(stored: history, recordings: pastRecordings()))
+            JobHistory.merged(stored: history, recordings: pastRecordings()),
+            discoveringIn: [settings.customOutputDirectory].compactMap { $0 }
+        )
     }
 
     /// Records a finished job. Called for every completed item, recordings included — a
@@ -242,24 +248,27 @@ final class AppState {
         selectedHistoryID = entry?.id
         historyText = nil
         historyTextError = nil
-        guard let entry else { return }
+        historyOutputs = entry?.outputs ?? []
+        selectedHistoryOutput = nil
+        guard entry != nil else { return }
 
-        let preferred: [String] = [
-            OutputFormat.txt.fileExtension, OutputFormat.notes.fileExtension,
-            OutputFormat.srt.fileExtension, OutputFormat.vtt.fileExtension,
-            OutputFormat.tsv.fileExtension, OutputFormat.json.fileExtension,
-        ]
-        let readable = preferred.lazy.compactMap { ext in
-            entry.outputs.first { $0.pathExtension.lowercased() == ext }
-        }.first
-
-        guard let url = readable else {
-            historyTextError = String(localized: "No transcript was found for this one.")
+        // The outputs arrive accurate-first (ADR-025), so this opens the better transcript
+        // and leaves the live one a click away in the picker.
+        guard let first = historyOutputs.first else {
+            historyTextError = String(localized: "No transcript was kept for this one.")
             return
         }
+        selectHistoryOutput(first)
+    }
+
+    /// Reads one of the selected row's transcripts into the output pane.
+    func selectHistoryOutput(_ url: URL) {
+        selectedHistoryOutput = url
+        historyTextError = nil
         do {
             historyText = try String(contentsOf: url, encoding: .utf8)
         } catch {
+            historyText = nil
             historyTextError = String(
                 localized: "The transcript could not be read: \(error.localizedDescription)")
         }

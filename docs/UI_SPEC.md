@@ -222,9 +222,10 @@ A segmented control at the top of the left pane switches between the two (ADR-02
 └──────────────────────────────┘
 ```
 
-Selecting a row reads its transcript into the output pane on the right — plain text first,
-then the notes list; a row whose only outputs are subtitles or JSON says there is nothing to
-show inline. The context menu offers **Transcribe Again**, **Show in Finder**, **Open
+Selecting a row reads its transcript into the output pane on the right. Where a recording
+has both an accurate and a live transcript, the pane's picker offers both — `txt` and
+`txt · live` — and opens the accurate one, which is the better text (ADR-025). A row with no
+transcript kept says so. The context menu offers **Transcribe Again**, **Show in Finder**, **Open
 <transcript>** for each output found, **Remove from History** (forgets the row, touches no
 files) and, for recordings only, **Move Audio to Trash…**.
 

@@ -20,14 +20,36 @@ struct OutputPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("View", selection: $tab) {
-                ForEach(Tab.allCases) { tab in
-                    Text(tab.title).tag(tab)
+            // In the History tab the picker lists the row's transcripts instead of
+            // TEXT/LOG: a recording has both a live and an accurate version, and which one
+            // you are reading is the thing worth choosing (ADR-025).
+            if state.sidebarTab == .history {
+                if state.historyOutputs.count > 1 {
+                    Picker("Transcript", selection: historyOutputBinding) {
+                        ForEach(state.historyOutputs, id: \.self) { url in
+                            Text(HistoryEntry.label(for: url)).tag(url)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .padding(8)
+                } else if let url = state.selectedHistoryOutput {
+                    Text(HistoryEntry.label(for: url))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(8)
                 }
+            } else {
+                Picker("View", selection: $tab) {
+                    ForEach(Tab.allCases) { tab in
+                        Text(tab.title).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(8)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(8)
 
             Divider()
 
@@ -57,6 +79,14 @@ struct OutputPane: View {
         Text("Select a file")
             .foregroundStyle(.tertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// `Picker` writes through a binding; the state owns which transcript is loaded.
+    private var historyOutputBinding: Binding<URL> {
+        Binding(
+            get: { state.selectedHistoryOutput ?? state.historyOutputs.first ?? URL(filePath: "/") },
+            set: { state.selectHistoryOutput($0) }
+        )
     }
 
     /// The transcript of the selected history row, read from disk.

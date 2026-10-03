@@ -75,8 +75,9 @@ You choose the source:
 | **Both** | A call, with both sides in one transcript |
 
 When you finish, the sheet closes at once and the recording is saved, then goes
-through a full-quality pass — so the live text is a preview and the file you keep is
-the accurate version.
+through a full-quality pass. Both texts are kept: the live one as it was heard, and the
+accurate one beside it, so you can compare them later or reach for the live text when
+the pass is still running.
 
 Nothing gets lost afterwards. The left pane has two tabs: **Queue** for what is
 running now, and **History** for everything that has been through before — recordings

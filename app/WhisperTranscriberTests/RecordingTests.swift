@@ -410,8 +410,50 @@ struct LiveTranscriptTests {
         }
     }
 
-    @Test("The writer writes only the selected formats it can produce")
-    func writerRespectsSelectedFormats() throws {
+    /// The bug this fixes: with only `srt` and `vtt` ticked — a perfectly ordinary choice —
+    /// the live text could produce neither, so nothing was written and the only record of
+    /// what was heard while recording was thrown away (ADR-025).
+    @Test("The live text is written even when txt is not among the chosen formats")
+    func liveTextIsAlwaysWritten() throws {
+        let directory = URL(filePath: NSTemporaryDirectory())
+            .appending(path: "wt-live-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        var settings = WhisperSettings()
+        settings.outputLocation = .customFolder
+        settings.customOutputDirectory = directory
+        settings.outputFormats = [.srt, .vtt]
+
+        let audio = directory.appending(path: "Meeting.m4a")
+        let written = LiveTranscriptWriter.write(
+            transcript([("Hello.", 0, 2)]), for: audio, settings: settings, suffixed: false)
+
+        #expect(written.map(\.lastPathComponent) == ["Meeting.txt"])
+    }
+
+    @Test("notes is written alongside txt when it is selected")
+    func liveTextAddsNotesWhenChosen() {
+        var settings = WhisperSettings()
+        settings.outputFormats = [.notes, .srt]
+
+        #expect(LiveTranscriptWriter.formats(for: settings) == [.txt, .notes])
+    }
+
+    /// The live text can only ever be those two; the rest need fields it does not have.
+    @Test("Only txt and notes are ever written live")
+    func liveFormatsAreBounded() {
+        var settings = WhisperSettings()
+        settings.outputFormats = Set(OutputFormat.allCases)
+
+        let formats = Set(LiveTranscriptWriter.formats(for: settings))
+        #expect(formats == LiveTranscript.writableFormats)
+    }
+
+    /// `txt` is always written (ADR-025); what this pins is the other half — a selected
+    /// format the live text *cannot* produce is skipped rather than written empty or faked.
+    @Test("A selected format the live text cannot produce is skipped")
+    func writerSkipsFormatsItCannotProduce() throws {
         let directory = URL(filePath: NSTemporaryDirectory())
             .appending(path: "wt-live-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -27,6 +27,23 @@ struct HistoryEntry: Codable, Identifiable, Equatable, Sendable {
     var dateLabel: String { date.formatted(date: .abbreviated, time: .shortened) }
 
     var symbol: String { kind == .recording ? "waveform" : "doc" }
+
+    /// Whether an output file is the live preview rather than the accurate pass.
+    ///
+    /// Told apart by the suffix the writer gives it, which is the only difference in the
+    /// name — `Meeting (live).txt` beside `Meeting.txt`.
+    static func isLive(_ url: URL) -> Bool {
+        url.deletingPathExtension().lastPathComponent.hasSuffix(LiveTranscriptWriter.liveSuffix)
+    }
+
+    /// The label for an output in the picker: the format, and whether it is the live one.
+    static func label(for url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        return isLive(url) ? String(localized: "\(ext) · live") : ext
+    }
+
+    /// The live transcript, if one was kept.
+    var liveOutput: URL? { outputs.first(where: Self.isLive) }
 }
 
 /// The record of past work, kept in `history.json`.
@@ -101,16 +118,43 @@ enum JobHistory {
         return (stored + extras).sorted { $0.date > $1.date }
     }
 
-    /// Drops the outputs that are no longer on disk, so the list never offers to open a file
-    /// that has been deleted. An entry whose source is gone is **kept**: it is still a record
-    /// of work done, and the view marks it.
+    /// Brings an entry's outputs in line with the disk.
+    ///
+    /// Two directions, and both matter. Outputs that have been deleted are **dropped**, so
+    /// the list never offers to open a file that is gone. Transcripts found beside the source
+    /// are **added**, which is how the live text appears next to the accurate one — it is
+    /// written when the recording ends, before the job that gets stored, so it was never in
+    /// the stored list (ADR-025).
+    ///
+    /// An entry whose source is gone is kept: it is still a record of work done, and the view
+    /// marks it.
     static func refreshed(
         _ entries: [HistoryEntry],
+        discoveringIn directories: [URL] = [],
         fileManager: FileManager = .default
     ) -> [HistoryEntry] {
         entries.map { entry in
             var copy = entry
-            copy.outputs = entry.outputs.filter { fileManager.fileExists(atPath: $0.path) }
+            var outputs = entry.outputs.filter { fileManager.fileExists(atPath: $0.path) }
+            var seen = Set(outputs.map(\.standardizedFileURL.path))
+
+            let searchPaths = [entry.source.deletingLastPathComponent()] + directories
+            for found in RecordingsLibrary.transcripts(
+                for: entry.source, in: searchPaths, fileManager: fileManager)
+            where seen.insert(found.standardizedFileURL.path).inserted {
+                outputs.append(found)
+            }
+
+            // The **accurate** text first, and so the one opened by default. The live
+            // version is a preview with known inaccuracies; making it the default would hand
+            // the user the worse of the two every time. It sits beside it in the picker.
+            copy.outputs = outputs.sorted { lhs, rhs in
+                let lhsLive = HistoryEntry.isLive(lhs)
+                let rhsLive = HistoryEntry.isLive(rhs)
+                if lhsLive != rhsLive { return !lhsLive }
+                return lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent)
+                    == .orderedAscending
+            }
             return copy
         }
     }

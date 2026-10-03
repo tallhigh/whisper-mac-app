@@ -902,3 +902,44 @@ does not answer it.
   transcript read off disk. Which one shows is decided by the sidebar tab.
 - A recording is listed once whether it was transcribed or not, because the merge is keyed
   on the source rather than on the kind.
+
+---
+
+## ADR-025 — The live transcript is always kept, and offered beside the accurate one
+**Date:** 2026-10-03 · **Status:** accepted
+
+**Context.** `LiveTranscriptWriter` wrote only the formats the user had ticked, and the live
+text can produce only `txt` and `notes` — it has segment text and a timestamp, not the fields
+`srt`/`vtt`/`json`/`tsv` need. With **srt and vtt** selected, which is an ordinary choice for
+anyone doing subtitles, the live text could produce neither, so nothing was written. It was
+shown on screen while recording and then dropped.
+
+**Decision.** `txt` is written for every live transcript regardless of the chosen formats,
+plus `notes` when that is selected. The History tab lists both transcripts of a recording and
+the output pane picks between them.
+
+**Why it is not filtered like the second pass.** The chosen formats say what the *accurate*
+pass should produce, and that pass can produce any of them. The live text is a different
+artifact: it is the only record of what was heard while recording, and the accurate pass
+produces different text rather than the same text again. Discarding it because the user wants
+subtitles throws away the one thing that cannot be made again. The second pass stays filtered
+exactly as before.
+
+**The accurate text is the default, not the live one.** This went the other way first, on the
+reasoning that the live text is what someone opening a past recording is after — a test
+written against that comment is what showed it up. The accurate pass is simply the better
+transcript; opening the preview by default would hand the user the worse of the two every
+time. The live version is one click away in the picker, labelled `txt · live`.
+
+**The live file has to be discovered, not stored.** It is written when the recording ends,
+*before* the job whose completion gets recorded in the history, so it was never in the stored
+outputs. `JobHistory.refreshed` therefore scans beside the source as well as filtering what is
+stored — which also means a transcript produced later shows up without any bookkeeping.
+
+**Consequences.**
+- A recording now always leaves at least one text file behind, even when the settings ask
+  only for subtitles. That is one more file than before in that case, and it is the point.
+- The output pane has two different pickers depending on the sidebar tab: TEXT/LOG for a
+  running job, the available transcripts for a history row.
+- `LiveTranscriptWriter.formats(for:)` is the one place that decides, so the rule is testable
+  without writing files.

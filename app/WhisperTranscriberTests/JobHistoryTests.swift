@@ -126,6 +126,45 @@ struct JobHistoryTests {
 
     // MARK: - Refreshing against the disk
 
+    /// The live text is written when the recording ends, before the job that gets stored, so
+    /// it is never in the stored outputs. It has to be discovered (ADR-025).
+    @Test("The live transcript is discovered beside the source, after the accurate one")
+    func refreshDiscoversTheLiveTranscript() throws {
+        let directory = URL(filePath: NSTemporaryDirectory())
+            .appending(path: "wt-history-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let source = directory.appending(path: "Meeting.m4a")
+        let accurate = directory.appending(path: "Meeting.txt")
+        let live = directory.appending(path: "Meeting\(LiveTranscriptWriter.liveSuffix).txt")
+        for url in [source, accurate, live] { try Data("x".utf8).write(to: url) }
+
+        let refreshed = JobHistory.refreshed([
+            HistoryEntry(
+                source: source, kind: .recording, date: .now,
+                outputs: [accurate], model: nil, language: nil)
+        ])
+
+        #expect(refreshed[0].outputs.count == 2)
+        // The accurate text is the better one, so it is first and opens by default; the live
+        // preview is kept and offered beside it.
+        #expect(!HistoryEntry.isLive(refreshed[0].outputs[0]))
+        #expect(refreshed[0].outputs[0] == accurate)
+        #expect(refreshed[0].liveOutput == live)
+    }
+
+    @Test("The live file is told apart by its suffix, and labelled")
+    func labelsLiveOutputs() {
+        let live = URL(filePath: "/x/Meeting\(LiveTranscriptWriter.liveSuffix).txt")
+        let accurate = URL(filePath: "/x/Meeting.txt")
+
+        #expect(HistoryEntry.isLive(live))
+        #expect(!HistoryEntry.isLive(accurate))
+        #expect(HistoryEntry.label(for: accurate) == "txt")
+        #expect(HistoryEntry.label(for: live).contains("live"))
+    }
+
     @Test("Outputs that have been deleted are dropped, and the row is kept")
     func refreshDropsMissingOutputs() throws {
         let directory = URL(filePath: NSTemporaryDirectory())
