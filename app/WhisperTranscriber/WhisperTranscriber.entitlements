@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The list is deliberately kept short: Hardened Runtime is on and an entitlement is
+	     added only against a measured need (ADR-007).
+
+	     Code that uses a JIT (torch, numba) runs in a separate Python child process and does
+	     not inherit our entitlements; allow-jit is not needed.
+	     No App Sandbox — there is no App Store target and it would make writing to the
+	     folders the user picks harder. -->
+
+	<!-- The microphone. Without this entitlement, under Hardened Runtime the system denies
+	     access **without ever showing** the TCC dialog, and the app does not even appear in
+	     the Privacy list. Measured; see ADR-016. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+</dict>
+</plist>

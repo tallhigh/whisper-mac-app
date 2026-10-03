@@ -1,0 +1,433 @@
+# Decisions (ADRs)
+
+Every decision: context → decision → rationale → rejected alternatives → consequences.
+A new entry is added here whenever an architecture, packaging or library decision is
+made. A decision that stops being valid is not deleted; it is marked
+"Status: superseded (ADR-0xx)".
+
+---
+
+## ADR-001 — The Python environment is not embedded in the `.app`; the app installs it
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Context.** The app needs openai-whisper and torch. Those are either embedded in the
+`.app` or installed at runtime.
+
+**Decision.** Only the ~16 MB static `uv` binary is embedded in the `.app`. On first
+launch, `uv` installs an isolated CPython 3.13 and the dependencies under
+`~/Library/Application Support/WhisperTranscriber/runtime/`.
+
+**Rationale.**
+- The torch macOS arm64 wheel is ~1 GB and contains hundreds of `.dylib` files. In the
+  embedded scenario each one has to be signed individually and every release means a
+  ~3 GB notarization upload — slow and fragile.
+- The `.dmg` stays at 25–40 MB; app updates download in seconds.
+  (Measured in Phase 0: the empty skeleton `.app` is **36 MB**, 35 MB of which is the
+  embedded `uv`.)
+- Dependencies can be updated without re-releasing the app (when the
+  `requirements.txt` hash changes).
+
+**Rejected.**
+- *A fully embedded runtime:* not needing the internet is an advantage, but the
+  signing/notarization cost above is paid on every single release.
+- *Using the user's existing `whisper` installation:* there is no `whisper` on the
+  user's PATH right now; the system Python is 3.14.6 and a `brew upgrade` can change it
+  overnight. Depending on an environment the app doesn't control is unacceptable.
+- *A single Python app via PyInstaller:* loses the native look, plus PyInstaller's
+  notarization problems.
+
+**Consequences.** The internet and a ~850 MB download are mandatory on first launch.
+This is spelled out on the setup screen and never started without the user's consent.
+
+**Phase 0 verification (2026-10-01).** Setup was run end to end: **61 seconds**, 887 MB
+of permanent disk, no extra cost once the temporary cache is cleared. The decision is
+backed by measurement.
+
+---
+
+## ADR-002 — A native SwiftUI interface, with Python only as a background worker
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Decision.** The interface is Swift 6 / SwiftUI. Python code exists only as
+`whisper_worker.py`, running in a separate child process.
+
+**Rationale.** Drag and drop, Finder integration, notifications, dark mode, the Settings
+window and the signing/notarization flow all come for free on the native side. The
+separate process additionally gives us crash isolation and reliable cancellation.
+
+**Rejected.** PyQt6/Tkinter (non-native look, packaging problems), Electron/Tauri (a web
+layer is needless weight for this job).
+
+**Consequences.** A two-language repository. The contract between the processes must be
+defined explicitly → `docs/PROTOCOL.md`.
+
+---
+
+## ADR-003 — A swappable engine layer; openai-whisper in v1, whisper.cpp in v2
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Context.** On Apple Silicon, openai-whisper runs on the CPU in practice; MPS support
+has been partial for years (missing operators, quality regressions caused by fp16).
+whisper.cpp with Metal is markedly faster.
+
+**Decision.** The UI talks to the `TranscriptionEngine` protocol. In v1 there is a
+single implementation, `PythonWhisperEngine` (producing results identical to the user's
+existing CLI behaviour). `WhisperCppEngine` gets added to the same protocol in Phase 5.
+
+**Rationale.** v1's output must match what the user gets today — that is the
+correctness reference. Speed optimisation comes later, without changing the interface.
+
+**Rejected.**
+- *Starting with whisper.cpp directly:* gaining speed before the output difference can
+  be verified puts the result the user trusts at risk.
+- *faster-whisper:* good speed-up on the CPU, but it brings a separate model
+  format/download and its ceiling isn't as high as whisper.cpp + Metal. Can be
+  re-evaluated in Phase 5.
+
+**Consequences.** Extra work for the abstraction layer. `EngineCapabilities` is read at
+runtime and the UI greys out unsupported controls.
+
+---
+
+## ADR-004 — The worker doesn't invoke the whisper CLI; it uses the library directly
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Decision.** Rather than running the `venv/bin/whisper` command, `whisper_worker.py`
+imports the `whisper` module and calls `transcribe()`. Output files are produced by
+whisper's own `whisper.utils.get_writer()` writers.
+
+**Rationale.**
+- Real progress percentages: the `tqdm` object can be hooked; parsing the CLI's stdout
+  is fragile.
+- Live text can be shown as the segments arrive.
+- Errors can be typed as Python exceptions (`AUDIO_DECODE_FAILED` and so on); with the
+  CLI they are all just "exit 1".
+- The audio is decoded on our side with an ffmpeg at a known path → no PATH dependency,
+  and the audio duration is known up front.
+- Because the writers are whisper's own, the output file is identical to the CLI's.
+
+**Rejected.** Invoking the CLI as a child process (simple, but weak on progress,
+cancellation and distinguishing errors).
+
+**Consequences.** The worker depends on whisper's internal API
+(`whisper.transcribe.tqdm`, `whisper.utils.get_writer`). Both points are covered by
+pytest and are verified deliberately whenever the `openai-whisper` version is bumped.
+
+---
+
+## ADR-005 — The default model directory is the user's `~/.cache/whisper`
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Decision.** `model_dir` defaults to `~/.cache/whisper`. The app reads from that
+directory, writes to it only through whisper's downloader, and **never deletes** from
+it.
+
+**Rationale.** The user's directory already holds `small.pt`, `large-v3.pt` and
+`large-v3-turbo.pt` (4.8 GB in total). Choosing an app-specific directory would have
+meant downloading those 4.8 GB again.
+
+**Consequences.** The directory lives outside the app, under the user's control. The
+Models tab in Settings has no delete button; it only reveals the folder in Finder.
+
+---
+
+## ADR-006 — Pinned to Python 3.13
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Decision.** The managed environment uses CPython 3.13 (`scripts/versions.env`).
+
+**Rationale.** macOS arm64 cp313 **and** cp314 wheels exist for `torch` 2.14.1, `numba`
+0.68.0, `llvmlite` 0.50.0 and `tiktoken` 0.14.0 (verified on PyPI), so 3.14 is
+technically possible too. Even so, numba/llvmlite's JIT has historically been the last
+component to mature on the newest CPython; staying one release behind is risk-free.
+Because we are independent of the system Python, the user is unaffected by the choice.
+
+**Consequences.** Upgrading is a one-line change plus a full acceptance-test round.
+
+---
+
+## ADR-007 — Hardened Runtime on, a minimal entitlement list, no sandbox
+**Date:** 2026-10-01 · **Status:** accepted; amended by ADR-016
+
+**Decision.** Hardened Runtime is enabled (a notarization requirement), the
+`.entitlements` file is empty, and App Sandbox is off.
+
+**Rationale.** The code that uses a JIT (numba, torch) runs in a separate Python child
+process, not in ours; because that child has its own signing context our entitlements
+are not inherited by it — so neither `allow-jit` nor `disable-library-validation` is
+needed. The sandbox is unnecessary with no App Store target, and it makes writing to
+folders the user chooses harder.
+
+**Consequences.** Entitlements are never added "just in case". If a real failure
+requires one, it is added through a new ADR, with evidence of the failure. This is
+exactly what happened in ADR-016 for the microphone, which is the one entitlement in
+the file today.
+
+---
+
+## ADR-008 — The queue works sequentially, not in parallel
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Decision.** Several files can be queued, but they are processed one at a time, in
+order.
+
+**Rationale.** A single whisper model already saturates the CPU cores and (with the
+large models) several GB of RAM. Running them in parallel doesn't shorten the total
+time; it brings memory pressure and the risk of swapping.
+
+**Consequences.** The model can be loaded once and kept in memory across the queue (a
+Phase 3 optimisation): for consecutive files using the same model, the load time is
+paid once.
+
+---
+
+## ADR-009 — Commit straight to `main`, release with tags
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Decision.** A single-developer project; no PR flow, commits go straight to `main`.
+Releases are tagged `vX.Y.Z`, created by `make release`.
+
+**Consequences.** No CI; the quality gates are local (`make test`, `make lint`) plus the
+acceptance-test list in `docs/PLAN.md`. No tag is created from a tree that isn't green.
+
+---
+
+## ADR-010 — No Sparkle (auto-update) in v1
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Decision.** There is no update check in v1; the user downloads the new `.dmg` from
+GitHub Releases.
+
+**Rationale.** A single user. Sparkle brings appcast.xml hosting and a separate EdDSA
+signing infrastructure; at this stage there's nothing to show for that.
+
+**Alternative (Phase 6, optional).** The lightest middle ground: on launch the app reads
+the latest tag from the GitHub Releases API, shows a "there's a new version"
+notification and opens the download page. No automatic installation. If that is decided
+on, a new ADR gets written.
+
+---
+
+## ADR-011 — The Xcode project is generated from `project.yml`; the pbxproj is not committed
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Context.** `.xcodeproj/project.pbxproj` is a machine-generated file thousands of lines
+long. Editing it by hand is error-prone, and every new Swift file changes it.
+
+**Decision.** The project is generated from `app/project.yml` with XcodeGen (2.46.0).
+`app/WhisperTranscriber.xcodeproj/` and the generated `Info.plist` are in `.gitignore`.
+`make generate` produces it; `make build` and `make archive` call that first.
+
+**Rationale.** Source files are collected from the directory automatically — adding a
+new file doesn't mean touching the pbxproj. Build settings can be reviewed as readable
+YAML. A full build is possible without opening Xcode.
+
+**Rejected.**
+- *Writing the pbxproj by hand and committing it:* possible in a single-target project,
+  but every added file means editing a 20-plus-line block full of UUIDs.
+- *Swift Package Manager:* can't produce the `.app` bundle, the Info.plist or the
+  signing flow.
+- *Tuist:* heavier than XcodeGen; nothing to show for it at this scale.
+
+**Consequences.** XcodeGen becomes a development dependency (`brew install xcodegen`).
+Settings changed by hand in Xcode are lost at the next `make generate` — they must be
+changed in `project.yml`. `make doctor` reports whether xcodegen is present.
+
+**Phase 0 note.** The `copyFiles` schema must be written **nested under `buildPhase:`**
+in the sources entry; written as a sibling, XcodeGen ignores it silently and the files
+are never copied into the bundle. That's a hard failure to notice, because the build
+still looks successful — which is exactly why the `BundledResources` check inside
+`ContentView` exists.
+
+---
+
+## ADR-012 — MPS stays experimental; on failure the job is retried on the CPU
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Context.** `torch` supports the MPS backend on Apple Silicon, but `openai-whisper` is
+not reliable on MPS: some kernels are missing, and some models produce silently
+corrupted output or a runtime error. The speed-up potential is high even so, which is
+why we don't want to remove the option entirely.
+
+**Decision.** `mps` is offered in the device selection labelled **"(experimental)"** and the
+default stays `cpu`. If a job fails with MPS, the queue does not drop it: it switches
+the device to `cpu` and retries **once**. The fallback is not hidden from the user — the
+log lines from the failed MPS attempt are preserved and the line
+`[warning] MPS failed, retrying on the CPU.` is appended to the log.
+
+**Rationale.**
+- What matters to the user is the result: the transcription finishing matters more than
+  which backend was used.
+- A silent fallback is unacceptable; marking MPS experimental and then hiding the error
+  would mean the user never learns that MPS doesn't work.
+- The retry happens **once**, and because the device is `cpu` on the second attempt the
+  condition can't be met again; there is no risk of a loop.
+
+**Consequences.**
+- A job that fails on MPS completes with a delay equal to the CPU time.
+- The queue row shows the job as completed; the MPS fallback is only visible from the
+  LOG tab. That's deliberate: we don't present it as an error in the main flow.
+
+---
+
+## ADR-013 — A settings block decodes resiliently against missing keys; empty optionals are written as an explicit `null`
+**Date:** 2026-10-01 · **Status:** accepted
+
+**Context.** `WhisperSettings` is stored as JSON inside `UserDefaults`. Swift's
+synthesised `Decodable` decoder **throws on a missing key**, and `SettingsStore.load()`
+was swallowing the error and falling back to the defaults. The result: every time a new
+settings field was added to the app, all of the user's settings were silently reset.
+
+A second problem: the synthesised **encoder** omits `nil` optionals. That made "no key"
+(an older block) indistinguishable from "the user deliberately cleared it". Because the
+default for `beamSize`/`bestOf` is `5` and for `language` is `"tr"`, losing that
+distinction silently broke CLI equivalence: a missing key → `nil` → greedy decoding →
+output that differs from the whisper CLI's.
+
+**Decision.**
+1. `init(from:)` is written by hand; every field is read resiliently and a missing field
+   falls back to **its default**, leaving the other settings intact.
+2. `encode(to:)` is written by hand. The three optional fields whose default is **not**
+   `nil` (`language`, `beamSize`, `bestOf`) are always written — explicitly as `null`
+   when empty. For those, the decoder checks `contains(key)`: no key means the default,
+   a present key (including `null`) means the stored value.
+3. Optionals whose default is `nil` (`maxLineWidth`, `customOutputDirectory` and so on)
+   continue to be omitted; there, absence and `null` mean the same thing.
+4. The same pattern is applied to `AppPreferences`.
+
+**Rationale.** The "no key ≠ `null`" distinction that already exists in the protocol
+(`docs/WHISPER_OPTIONS.md` → null semantics) should hold in the settings store too. The
+alternative — a version number plus migration code — is too heavy for a structure this
+size; reading the fields one by one is both explicit and testable.
+
+**Consequences.**
+- Adding a new settings field no longer drops the user's settings.
+- `CodingKeys` is written out explicitly: changing a field's **name** resets that
+  setting to its default. If a field is to be renamed, a migration that also reads the
+  old key must be added.
+- Every field added to `WhisperSettings` and `AppPreferences` owes a line to the "older
+  block" test in `PreferencesTests`.
+
+---
+
+## ADR-014 — The worker produces the "notes" format with its own writer
+**Date:** 2026-10-02 · **Status:** accepted
+
+**Context.** The user wants a timestamped note list for skimming a recording
+afterwards: `- [04:12] sentence`. None of whisper's `get_writer()` writers produces
+that. `srt`/`vtt` carry timestamps but they are subtitle files; `tsv` is for machines;
+`txt` has no timestamps.
+
+This conflicts with the rule "we don't format output files, we use whisper's own
+writers" (CLAUDE.md, architecture rule 5).
+
+**Decision.** The exception to the rule is confined to **a single format**. The `notes`
+format is written by `write_notes()` inside the worker; whisper's five formats
+(`txt/vtt/srt/tsv/json`) keep going through `get_writer()` as before. The exceptions are
+listed in the `_OWN_FORMATS` constant.
+
+**Rationale.**
+- The purpose of rule 5 is **CLI equivalence**: if we rewrite a format whisper produces,
+  the output diverges from the command line's. `notes` has no counterpart on the command
+  line, so there is no reference to diverge from.
+- Moving the writing to Swift would be worse: atomic writes, the overwrite check and
+  cleaning up the temporary directory are already in the worker and should stay in one
+  place.
+- The format name (`notes`) and the extension (`md`) diverge for the first time;
+  `format_extension()` is the single source of that mapping.
+
+**Consequences.**
+- If another "our own" format is added, it joins `_OWN_FORMATS` and this ADR widens.
+- `write_outputs` doesn't load `whisper.utils` at all for a job that asks only for
+  `notes`.
+- Segments with empty text are skipped: whisper can emit empty segments during silence,
+  and those showed up as empty bullets in the note list.
+
+---
+
+## ADR-015 — Decoding options removed from the interface and not written into the job definition
+**Date:** 2026-10-02 · **Status:** accepted (supersedes part of ADR-013)
+
+**Context.** In Phase 4, every advanced parameter from the `WHISPER_OPTIONS.md` table
+was put into the interface: beam width, the temperature ladder and the fallback step,
+the three thresholds, the hallucination threshold, word timestamps, subtitle wrapping,
+the thread count, fp16, the initial prompt. The user doesn't use any of them and asked
+for the app to be simplified.
+
+The presence of those settings was also a source of risk: ADR-013 records that leaving
+the `beam_size` key out silently broke CLI equivalence.
+
+**Decision.** The advanced section was removed from the interface entirely and the
+corresponding fields were deleted from `WhisperSettings`. The job definition now
+**carries no decoding key at all**; the single exception is `fp16`, and even that isn't a
+user setting but derived from the device (`false` on CPU, key absent otherwise).
+
+Device selection (CPU / MPS) moved from the main panel to the **Settings → Runtime
+environment** tab; it isn't something that changes per job.
+
+**Rationale.**
+- Not sending a key is **safer** than sending it: the worker already applies the command
+  line's `beam_size=5`, `best_of=5` and temperature ladder through
+  `_CLI_PARITY_DEFAULTS`. Equivalence is defined in one place, in the worker.
+- The UI values of the thresholds (`no_speech_threshold` and friends) were already
+  identical to whisper's own defaults; sending them changed nothing.
+- The protocol did not shrink: the worker still accepts every key, it is only the v1
+  interface that doesn't send them. If an "expert mode" is added later, the protocol is
+  ready.
+
+**Consequences.**
+- If the defaults change when the `whisper` version is bumped, the output changes with
+  them; `test_output_is_identical_to_the_cli` catches that.
+- Advanced keys in the user's older settings block are discarded silently while reading;
+  the remaining settings are preserved (`PreferencesTests` → the older-block test).
+- The "explicit `null`" rule ADR-013 introduced for `beamSize`/`bestOf` now applies only
+  to `language`. The rule about decoding resiliently against a missing key stands
+  unchanged.
+- The initial prompt is gone too. If it's ever wanted back it's a one-field addition;
+  the worker side (`initial_prompt`) is still there.
+
+---
+
+## ADR-016 — The microphone entitlement was added (the first exception to ADR-007)
+**Date:** 2026-10-02 · **Status:** accepted
+
+**Context.** ADR-007 keeps the entitlement list empty and says an entitlement will be
+added only *"if a real runtime failure requires it"*. Phase 7.1 requires microphone
+access; the entitlement was **not added first** — the behaviour was measured.
+
+**Measurement (2026-10-02).** The app was run without
+`com.apple.security.device.audio-input`, with Hardened Runtime on and a Debug signature,
+and a recording was attempted. The log is quoted as it was recorded, while the app's
+interface was still Turkish — `logs/recording.log`:
+
+```
+kayıt isteği — mikrofon durumu: undetermined
+izin soruldu — sonuç: denied
+kayıt başarısız: Mikrofon erişimine izin verilmedi.
+```
+
+Two observations together are decisive:
+1. The initial state is `undetermined` — that is, TCC holds no record at all for this
+   app.
+2. `AVCaptureDevice.requestAccess(for: .audio)` returned `denied` in **under a second**,
+   and the app **never appeared** in System Settings → Privacy & Security → Microphone.
+
+Had the user seen a permission dialog and refused it, the app would appear in that list
+(switched off). Its absence means the dialog was never shown: the request was refused at
+the signing layer, before reaching TCC.
+
+**Decision.** `com.apple.security.device.audio-input` is added to the entitlements file.
+No other entitlement is added; App Sandbox is not added.
+
+**Rationale.** Hardened Runtime's resource-access entitlements are not things to add
+"just in case" — they are a **precondition** of access. The measurement proved it, and
+the exception route ADR-007 anticipated was written for precisely this situation.
+
+**Consequences.**
+- The signature changed; a new notarization round is needed before release.
+- If TCC has already cached a denial for this app, the dialog may still not appear after
+  the entitlement is added; the fix is
+  `tccutil reset Microphone com.talhaturhan.WhisperTranscriber`.
+- System audio capture was measured the same way in Phase 7.2: **it needs no
+  entitlement and no extra permission.** A capture with `source: both` recorded 51.9 s
+  successfully without one, so nothing was added.

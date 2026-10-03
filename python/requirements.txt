@@ -1,0 +1,7 @@
+# The direct dependencies of the managed Python environment.
+# The full locked list: requirements.lock (produced by uv pip compile).
+# All of them have a macOS arm64 / cp313 wheel — nothing is built from source.
+
+openai-whisper==20250625
+torch==2.14.1
+imageio-ffmpeg==0.6.0

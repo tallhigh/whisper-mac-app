@@ -1,0 +1,16 @@
+line-length = 110
+target-version = "py313"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    # The worker quotes Turkish sample data verbatim — whisper's own output in a comment,
+    # and the spoken fixture text the tests assert on (see CLAUDE.md → Language policy).
+    # ı/ş/ğ/İ there is the data, not a typo, so these three rules are pure noise.
+    "RUF001", # ambiguous unicode in a string
+    "RUF002", # ambiguous unicode in a docstring
+    "RUF003", # ambiguous unicode in a comment
+]
+
+[format]
+quote-style = "double"

@@ -1,0 +1,3 @@
+# For development and testing only. Not installed into the app's runtime environment.
+-r requirements.txt
+pytest==9.0.1

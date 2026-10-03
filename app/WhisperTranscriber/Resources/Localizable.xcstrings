@@ -1,0 +1,833 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    " " : {
+
+    },
+    " (live)" : {
+
+    },
+    "%@ could not be run: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ could not be run: %2$@"
+          }
+        }
+      }
+    },
+    "%@ is English-only; it doesn't match the language." : {
+
+    },
+    "%@ is missing from the app bundle. Download the app again." : {
+
+    },
+    "%@ is not supported" : {
+
+    },
+    "%@ will be downloaded. The first run may be slow." : {
+
+    },
+    "%@, %lld percent" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld percent"
+          }
+        }
+      }
+    },
+    "%lld done" : {
+
+    },
+    "%lld failed" : {
+
+    },
+    "%lld files" : {
+
+    },
+    "%lld files are not supported" : {
+
+    },
+    "%lld files completed" : {
+
+    },
+    "%lld files completed, %lld failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld files completed, %2$lld failed"
+          }
+        }
+      }
+    },
+    "%lld percent" : {
+
+    },
+    "%lld/%lld · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld · %3$@"
+          }
+        }
+      }
+    },
+    "A specific folder" : {
+
+    },
+    "A transcription is running" : {
+
+    },
+    "About" : {
+
+    },
+    "Add" : {
+
+    },
+    "Add Files" : {
+
+    },
+    "Add Files…" : {
+
+    },
+    "All system audio" : {
+
+    },
+    "App" : {
+
+    },
+    "Audio capture could not be started: %@" : {
+
+    },
+    "Audio level" : {
+
+    },
+    "Audio recording" : {
+
+    },
+    "Audio recordings are written here; an existing file is never overwritten." : {
+
+    },
+    "Beside the source file" : {
+
+    },
+    "Both sides of the call" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Cancel the running job" : {
+
+    },
+    "Change Folder…" : {
+
+    },
+    "Change…" : {
+
+    },
+    "Changing a setting doesn't affect the running job; it applies from the next one on." : {
+
+    },
+    "Check the audio-recording permission in System Settings." : {
+
+    },
+    "Check your internet connection and try again." : {
+
+    },
+    "Checking the runtime…" : {
+
+    },
+    "Checking…" : {
+
+    },
+    "Choose" : {
+
+    },
+    "Choose the audio or video files to transcribe" : {
+
+    },
+    "Choose the files to transcribe" : {
+
+    },
+    "Choose…" : {
+
+    },
+    "Cleaning temporary files" : {
+
+    },
+    "Clear Completed" : {
+
+    },
+    "Clear completed" : {
+
+    },
+    "Clearing quarantine flags" : {
+
+    },
+    "Compute" : {
+
+    },
+    "Confirm on quit while transcribing" : {
+
+    },
+    "Connect a microphone and try again." : {
+
+    },
+    "Copy" : {
+
+    },
+    "Copy Log" : {
+
+    },
+    "Copy Text" : {
+
+    },
+    "Creating the virtual environment" : {
+
+    },
+    "Default" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete Environment…" : {
+
+    },
+    "Delete the runtime?" : {
+
+    },
+    "Deletes the runtime and installs it from scratch (~850 MB download)" : {
+
+    },
+    "Details" : {
+
+    },
+    "Detect automatically" : {
+
+    },
+    "Device" : {
+
+    },
+    "Downloaded models" : {
+
+    },
+    "Downloading Python" : {
+
+    },
+    "Drop audio files" : {
+
+    },
+    "Drop audio files here" : {
+
+    },
+    "Environment" : {
+
+    },
+    "Finish" : {
+
+    },
+    "Folder" : {
+
+    },
+    "Follow" : {
+
+    },
+    "Format" : {
+
+    },
+    "General" : {
+
+    },
+    "Grant access in System Settings → Privacy & Security → Microphone." : {
+
+    },
+    "Health Check" : {
+
+    },
+    "If you quit, the running job will be cancelled." : {
+
+    },
+    "Installed" : {
+
+    },
+    "Installing dependencies" : {
+
+    },
+    "Installing…" : {
+
+    },
+    "Keep the Mac awake while transcribing" : {
+
+    },
+    "LOG" : {
+
+    },
+    "Language" : {
+
+    },
+    "Linking ffmpeg" : {
+
+    },
+    "Live model" : {
+
+    },
+    "Live transcription" : {
+
+    },
+    "Location" : {
+
+    },
+    "MIT License · © 2026 Talha Turhan" : {
+
+    },
+    "MPS (experimental)" : {
+
+    },
+    "MPS is experimental: whisper doesn't run reliably on it for every model. If a job fails with MPS, it is retried automatically on the CPU." : {
+
+    },
+    "Maintenance" : {
+
+    },
+    "Microphone" : {
+
+    },
+    "Microphone + system audio" : {
+
+    },
+    "Microphone access was not granted." : {
+
+    },
+    "Model" : {
+
+    },
+    "Model folder" : {
+
+    },
+    "Models" : {
+
+    },
+    "Models are downloaded into this folder. The app only reads from it; it never deletes a model." : {
+
+    },
+    "My presets" : {
+
+    },
+    "Name" : {
+
+    },
+    "No app is playing audio. Start the audio in Zoom or a browser, then refresh." : {
+
+    },
+    "No presets saved yet. You can save one from the list in the toolbar." : {
+
+    },
+    "No text was produced." : {
+
+    },
+    "No usable microphone was found." : {
+
+    },
+    "Not installed" : {
+
+    },
+    "OK" : {
+
+    },
+    "On disk" : {
+
+    },
+    "Only audio and video files can be added." : {
+
+    },
+    "Only the other side" : {
+
+    },
+    "Only your own voice" : {
+
+    },
+    "Open Log Folder" : {
+
+    },
+    "Open Logs" : {
+
+    },
+    "Open Privacy Settings" : {
+
+    },
+    "Output" : {
+
+    },
+    "Output formats" : {
+
+    },
+    "Output location" : {
+
+    },
+    "Overwrite" : {
+
+    },
+    "Overwrite an existing file" : {
+
+    },
+    "Overwrite the existing files?" : {
+
+    },
+    "Pause" : {
+
+    },
+    "Plain text" : {
+
+    },
+    "Preset setting bundles" : {
+
+    },
+    "Presets" : {
+
+    },
+    "Produce the accurate transcript afterwards" : {
+
+    },
+    "Python" : {
+
+    },
+    "Queue" : {
+
+    },
+    "Queue status" : {
+
+    },
+    "Quit" : {
+
+    },
+    "Ready" : {
+
+    },
+    "Record" : {
+
+    },
+    "Record Audio…" : {
+
+    },
+    "Record audio from the microphone" : {
+
+    },
+    "Recording" : {
+
+    },
+    "Recording duration" : {
+
+    },
+    "Recording folder" : {
+
+    },
+    "Recording the manifest" : {
+
+    },
+    "Refresh the apps playing audio" : {
+
+    },
+    "Refresh the list" : {
+
+    },
+    "Reinstall" : {
+
+    },
+    "Reinstall Environment" : {
+
+    },
+    "Reinstall the runtime from Settings." : {
+
+    },
+    "Reinstall the runtime?" : {
+
+    },
+    "Reinstalling deletes the runtime and downloads ~850 MB again. The whisper models you downloaded are left alone." : {
+
+    },
+    "Reinstall…" : {
+
+    },
+    "Remove from Queue" : {
+
+    },
+    "Reset to Default" : {
+
+    },
+    "Resume" : {
+
+    },
+    "Retry" : {
+
+    },
+    "Reveal in Finder" : {
+
+    },
+    "Reveal the produced files in Finder" : {
+
+    },
+    "Running" : {
+
+    },
+    "Runtime" : {
+
+    },
+    "Save" : {
+
+    },
+    "Save Current Settings…" : {
+
+    },
+    "Save as a preset" : {
+
+    },
+    "Select a file" : {
+
+    },
+    "Select at least one output format." : {
+
+    },
+    "Send a notification" : {
+
+    },
+    "Setup could not be verified: %@" : {
+
+    },
+    "Setup failed." : {
+
+    },
+    "Setup location: ~/Library/Application Support/WhisperTranscriber" : {
+
+    },
+    "Setup progress" : {
+
+    },
+    "Setup required" : {
+
+    },
+    "Setup was cancelled." : {
+
+    },
+    "Show the text live while recording" : {
+
+    },
+    "Show the text live while speaking" : {
+
+    },
+    "Source" : {
+
+    },
+    "Source code and release notes" : {
+
+    },
+    "Start" : {
+
+    },
+    "Start Recording" : {
+
+    },
+    "Start Setup" : {
+
+    },
+    "Start the audio in the app and try again." : {
+
+    },
+    "Start the recording." : {
+
+    },
+    "Start transcribing when a file is added" : {
+
+    },
+    "Start working the queue" : {
+
+    },
+    "Status" : {
+
+    },
+    "Stop" : {
+
+    },
+    "SubRip subtitles" : {
+
+    },
+    "System audio" : {
+
+    },
+    "System audio could not be captured (%@: %lld)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "System audio could not be captured (%1$@: %2$lld)."
+          }
+        }
+      }
+    },
+    "TEXT" : {
+
+    },
+    "Task" : {
+
+    },
+    "The %@ step failed (exit code %d)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The %1$@ step failed (exit code %2$d)."
+          }
+        }
+      }
+    },
+    "The Python interpreter is missing." : {
+
+    },
+    "The current environment is deleted and downloaded again. Your models are kept." : {
+
+    },
+    "The dependency list changed; reinstall." : {
+
+    },
+    "The environment is deleted and the app returns to the setup screen. The whisper models you downloaded are not deleted." : {
+
+    },
+    "The file may be corrupt or in an unsupported format." : {
+
+    },
+    "The job failed." : {
+
+    },
+    "The job was cancelled." : {
+
+    },
+    "The live preview's model; the accurate pass uses the one in Settings" : {
+
+    },
+    "The live text is a preview; the accurate transcript is produced afterwards." : {
+
+    },
+    "The live text is decoded greedily and is a preview. The accurate pass runs in the queue and writes its own files, so the live text is kept. An hour-long recording takes about 18 minutes with `small`; with the accurate pass off, the live text is the final output." : {
+
+    },
+    "The manifest doesn't match this app version." : {
+
+    },
+    "The model file may be corrupt; delete it from the model folder." : {
+
+    },
+    "The model list is read once the runtime is ready." : {
+
+    },
+    "The model, language and formats are saved; the output folder is not." : {
+
+    },
+    "The notification is only shown while the app is in the background." : {
+
+    },
+    "The queue is empty" : {
+
+    },
+    "The recording could not be started." : {
+
+    },
+    "The recording file could not be created: %@" : {
+
+    },
+    "The runtime is not ready." : {
+
+    },
+    "The runtime is not responding." : {
+
+    },
+    "The selected app isn't playing any audio right now." : {
+
+    },
+    "The setup manifest could not be read." : {
+
+    },
+    "The text will appear here as the segments arrive." : {
+
+    },
+    "The text will appear here as you speak…" : {
+
+    },
+    "The transcription ended unexpectedly (exit code %d)." : {
+
+    },
+    "The transcription failed." : {
+
+    },
+    "The transcription finished but no result arrived." : {
+
+    },
+    "The translate task produces English output." : {
+
+    },
+    "These files already exist:" : {
+
+    },
+    "This file is waiting in the queue." : {
+
+    },
+    "This is the longest step; it can take a few minutes." : {
+
+    },
+    "Timestamped note list (.md)" : {
+
+    },
+    "Transcribe" : {
+
+    },
+    "Transcribes audio files to text with OpenAI Whisper. Everything happens on this Mac; the audio is never sent to any server." : {
+
+    },
+    "Transcription" : {
+
+    },
+    "Transcription finished" : {
+
+    },
+    "Translate to English" : {
+
+    },
+    "Try Again" : {
+
+    },
+    "Try choosing a smaller model." : {
+
+    },
+    "Turn on overwriting, or choose another output folder." : {
+
+    },
+    "Verifying" : {
+
+    },
+    "Version %@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Version %1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "View" : {
+
+    },
+    "WebVTT subtitles" : {
+
+    },
+    "When finished" : {
+
+    },
+    "When recording stops, the file joins the queue and is transcribed as usual." : {
+
+    },
+    "Whisper Transcriber" : {
+
+    },
+    "Whisper Transcriber installs an isolated Python environment of its own in order to transcribe audio files." : {
+
+    },
+    "With this off, only audio is recorded; the text is produced afterwards" : {
+
+    },
+    "and %lld more files" : {
+
+    },
+    "audio ready" : {
+
+    },
+    "automatic" : {
+
+    },
+    "calculating…" : {
+
+    },
+    "cancelled" : {
+
+    },
+    "completed" : {
+
+    },
+    "decoding the audio" : {
+
+    },
+    "detecting the language" : {
+
+    },
+    "downloaded" : {
+
+    },
+    "downloading the model" : {
+
+    },
+    "failed" : {
+
+    },
+    "imageio-ffmpeg" : {
+
+    },
+    "loading the model" : {
+
+    },
+    "m4a · mp3 · wav · mp4 and others" : {
+
+    },
+    "not downloaded" : {
+
+    },
+    "notes" : {
+
+    },
+    "preparing" : {
+
+    },
+    "preparing the model" : {
+
+    },
+    "queued" : {
+
+    },
+    "selected" : {
+
+    },
+    "torch" : {
+
+    },
+    "transcribing" : {
+
+    },
+    "whisper" : {
+
+    },
+    "whisper %@ · torch %@ · Python %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "whisper %1$@ · torch %2$@ · Python %3$@"
+          }
+        }
+      }
+    },
+    "whisper_worker.py is missing from the app bundle." : {
+
+    },
+    "writing the file" : {
+
+    }
+  },
+  "version" : "1.0"
+}
