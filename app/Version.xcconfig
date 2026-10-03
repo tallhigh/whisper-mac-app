@@ -1,5 +1,5 @@
 // The version numbers live only here; the Xcode project reads them from this file.
 // `make release VERSION=x.y.z` updates MARKETING_VERSION and bumps the build number.
 
-MARKETING_VERSION = 1.3.0
-CURRENT_PROJECT_VERSION = 15
+MARKETING_VERSION = 1.4.0
+CURRENT_PROJECT_VERSION = 16
