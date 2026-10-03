@@ -156,14 +156,25 @@ struct MainView: View {
 
     private var statusIndicator: some View {
         HStack(spacing: 6) {
-            // Colour alone carries no information; the text beside it says the same thing.
-            Circle()
-                .fill(state.queue.isRunning ? Color.accentColor : .green)
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
-            Text(state.queue.isRunning ? "Running" : "Ready")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // Finishing a recording takes as long as the last uncommitted window does to
+            // transcribe. The sheet no longer waits for it, so this is where the user learns
+            // it is still happening (ADR-022).
+            if state.recording.isFinalizing {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Finishing the live text…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                // Colour alone carries no information; the text beside it says the same thing.
+                Circle()
+                    .fill(state.queue.isRunning ? Color.accentColor : .green)
+                    .frame(width: 8, height: 8)
+                    .accessibilityHidden(true)
+                Text(state.queue.isRunning ? "Running" : "Ready")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Queue status")

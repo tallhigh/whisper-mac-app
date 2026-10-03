@@ -28,6 +28,8 @@ final class AppState {
     private(set) var downloadingModel: String?
     private(set) var downloadFraction: Double?
     private(set) var modelDownloadError: String?
+    /// The last failure from the recordings list, shown there.
+    private(set) var recordingsError: String?
     let queue: JobQueue
 
     // MARK: - Recording
@@ -194,6 +196,38 @@ final class AppState {
         }
     }
 
+    // MARK: - Past recordings
+
+    /// The recordings already on disk, newest first — ADR-021.
+    ///
+    /// Read from the folder every time rather than cached: a recording the user moved or
+    /// deleted in Finder should simply not be in the list, with nothing to reconcile.
+    func pastRecordings() -> [RecordingEntry] {
+        RecordingsLibrary.entries(
+            in: recordingDirectory,
+            transcriptSearchPaths: [settings.customOutputDirectory].compactMap { $0 }
+        )
+    }
+
+    /// Puts a past recording back through the accurate pass.
+    func transcribeAgain(_ entry: RecordingEntry) {
+        queue.enqueue([entry.url], settings: settings)
+        selectedItemID = queue.items.last?.id
+        if preferences.autoStartOnAdd {
+            startQueue()
+        }
+    }
+
+    /// Moves a recording to the Trash — recoverable on purpose (ADR-021).
+    func moveRecordingToTrash(_ entry: RecordingEntry) {
+        do {
+            try RecordingsLibrary.moveToTrash(entry.url)
+            recordingsError = nil
+        } catch {
+            recordingsError = error.localizedDescription
+        }
+    }
+
     /// Deletes one downloaded model and reads the capabilities again so the list, the sizes
     /// and the total shrink with it.
     ///
@@ -302,6 +336,13 @@ final class AppState {
         // would take the same name as "… (2)".
         recordingName = ""
         guard let result else { return }
+
+        // The sheet is already closed, so the wait for the worker's last window happens with
+        // the main window in front and a status of its own, instead of behind a modal that
+        // looks stuck (ADR-022). The accurate pass is queued only afterwards: starting it now
+        // would mean two whisper processes at once, which on a small Mac is exactly the memory
+        // problem ADR-018 is about.
+        await recording.waitForFinalText()
 
         // If the accurate pass is coming too, the live text goes to its own file
         // (`… (live).txt`); otherwise it is the final output and takes the plain name.

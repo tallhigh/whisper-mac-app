@@ -74,8 +74,13 @@ You choose the source:
 | **System audio** | What the Mac is playing — pick which app |
 | **Both** | A call, with both sides in one transcript |
 
-When you finish, the recording is saved and goes through a full-quality pass, so
-the live text is a preview and the file you keep is the accurate version.
+When you finish, the sheet closes at once and the recording is saved, then goes
+through a full-quality pass — so the live text is a preview and the file you keep is
+the accurate version.
+
+Past recordings stay in reach: **⇧⌘L** lists everything you have recorded, newest
+first, with the transcripts found for each. From there you can transcribe one again,
+open its text, or move the audio to the Trash — the transcripts stay.
 
 ### Six output formats
 
@@ -134,6 +139,7 @@ swapping. The app warns you when the model you picked is heavy for your machine.
 | ⌘R | Start the queue |
 | ⌘. | Stop the running job |
 | ⇧⌘K | Clear finished jobs |
+| ⇧⌘L | Past recordings |
 | ⌘, | Settings |
 
 ---

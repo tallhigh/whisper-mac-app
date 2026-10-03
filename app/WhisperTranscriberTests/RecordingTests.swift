@@ -127,6 +127,25 @@ struct RecordingControllerTests {
         URL(filePath: NSTemporaryDirectory()).appending(path: "wt-rec-\(UUID().uuidString)")
     }
 
+    /// Finishing used to wait inline for the worker to transcribe the last uncommitted
+    /// window, which kept the sheet on screen for seconds (ADR-022). The wait moved to
+    /// `waitForFinalText()`, which must be harmless when there was no live session at all —
+    /// the tests use a fake capture and never start one — and must not mind being called
+    /// twice.
+    @Test("Waiting for the final text is safe with no live session")
+    func waitForFinalTextWithoutSession() async throws {
+        let capture = FakeCapture(duration: 5)
+        let state = controller(capture)
+
+        await state.start(in: directory)
+        _ = await state.finish()
+
+        #expect(!state.isFinalizing)
+        await state.waitForFinalText()
+        await state.waitForFinalText()
+        #expect(!state.isFinalizing)
+    }
+
     @Test("Start, pause, resume, finish")
     func happyPath() async throws {
         let capture = FakeCapture(duration: 12)

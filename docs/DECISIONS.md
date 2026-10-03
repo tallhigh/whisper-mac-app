@@ -726,3 +726,83 @@ practice a check, while opening it twice in one hour politely does not ask GitHu
   tools can never silently disagree.
 - Users on 1.1.0 or earlier have no updater, so they upgrade by hand one last time. From
   1.1.1 onwards it is automatic.
+
+---
+
+## ADR-021 — Past recordings are listed from the folder, with no index
+**Date:** 2026-10-03 · **Status:** accepted
+
+**Context.** A finished recording was only visible for as long as its job sat in the queue.
+The audio was on disk the whole time, in `~/Documents/Whisper Transcriber/`, but nothing in
+the app would show it, so "what did I record last week" meant going to Finder.
+
+**Decision.** A **Recordings** window (⇧⌘L), listing the `.m4a` files in the recording folder
+newest first, with the transcripts found for each. Per row: transcribe again, show in Finder,
+open a transcript, move to Trash.
+
+**No index file.** The folder is the record. A recording the user moved or deleted in Finder
+simply is not in the list, with nothing to reconcile and no way for a stored index to drift
+out of step with the disk — the same reasoning as reading capabilities from the worker rather
+than hard-coding them. The cost is that a recording moved elsewhere disappears from the list,
+which is the honest answer: the app does not know where it went.
+
+**Transcripts are matched exactly, never by prefix.** A recording called `Meeting.m4a` must
+not claim `Meeting notes from last year.txt`. The only names accepted are the ones the writers
+produce: the stem, or the stem plus the live suffix, with a format's own extension. Both the
+recording's folder and the chosen output folder are searched, and a file found twice is listed
+once. A test covers the prefix trap specifically, because it is the kind of bug that looks
+like a feature until it attaches someone's unrelated notes to the wrong audio.
+
+**Deleting moves to the Trash.** This is the one deletion in the app that stays recoverable,
+and the difference from ADR-017 is the point: a model file can be downloaded again, a
+conversation that happened once cannot. The transcripts are left where they are — they are
+the part worth keeping.
+
+**Consequences.**
+- The list is read on every appearance rather than cached, so it costs a directory scan. At
+  the scale of a recordings folder that is nothing.
+- Duration is not shown. It would mean opening every file with AVFoundation to read it; date
+  and size come free from the directory scan.
+- A window and a menu item, not a pane: the queue is what is running now, this is what
+  happened before.
+
+---
+
+## ADR-022 — Finishing a recording does not wait for the worker
+**Date:** 2026-10-03 · **Status:** accepted
+
+**Context.** Pressing Finish left the sheet on screen for seconds, and longer the longer
+you had talked without pausing. It looked like it was waiting for silence.
+
+**What it was actually doing.** The live worker re-transcribes its uncommitted buffer every
+1.5 seconds and commits only the segments that end before a stability margin. During
+uninterrupted speech whisper produces no segment end, so nothing commits and the buffer grows
+— up to 30 seconds. `stop` makes the worker transcribe that whole remaining buffer one last
+time, and `RecordingController.finish()` awaited the process exit inline, with the sheet still
+up. So the wait was real, it scaled with how long since the last natural pause, and a pause
+made it short — which is why it looked like silence was the trigger.
+
+**Decision.** `finish()` sends `stop` and returns. The wait became `waitForFinalText()`, which
+`AppState.finishRecording()` calls **after** closing the sheet, with `isFinalizing` driving a
+"Finishing the live text…" status in the toolbar.
+
+This is safe because `apply(_:)` never checked the recording state: committed text arriving
+after `finish()` has returned still reaches `transcript`, which is what the live text file is
+then written from.
+
+**The order is deliberate.** The accurate second pass is queued only after the live text has
+landed. Starting it immediately would put two whisper processes on the machine at once, which
+on an 8 GB Mac is precisely the memory problem ADR-018 was about.
+
+**What was not done.** The wait itself was not removed — the last few seconds of speech
+genuinely are not transcribed yet when you press Finish, and discarding them to make the
+button feel fast would lose text the user said. Shortening `_STREAM_STABLE_MARGIN_SECONDS` or
+the 30-second ceiling would trade accuracy for latency in the live preview; neither was
+changed without a measurement to justify it.
+
+**Consequences.**
+- The sheet closes immediately. The work continues visibly in the main window.
+- A recording finished while the Recordings window is open appears in it when the status
+  clears, which is what that window watches `isFinalizing` for.
+- `LiveSession.finish()` still exists as `requestStop()` + `awaitExit()`, so the old
+  all-in-one behaviour is available where blocking is correct.

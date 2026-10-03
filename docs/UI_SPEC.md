@@ -181,6 +181,33 @@ for confirmation; both state explicitly that they do not touch the user's model 
 The "on disk" row is computed by walking the directory tree, so it runs once when the
 tab is opened, and inside an actor.
 
+## Recordings window (⇧⌘L)
+
+A window of its own, not a pane — the queue is what is running now, this is what happened
+before (ADR-021). It lists the `.m4a` files in the recording folder, newest first:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Recordings                                              │
+├──────────────────────────────────────────────────────────┤
+│  ⌁  Recording 2026-10-03 14-22          txt · md         │
+│     3 Oct 2026 at 14:22 · 4,1 MB                         │
+│  ⌁  Ekip toplantısı                     no transcript    │
+│     2 Oct 2026 at 09:05 · 12,8 MB                        │
+├──────────────────────────────────────────────────────────┤
+│  [Show Folder] [Transcribe Again] [Move to Trash…]   2 · 17 MB  ⟳ │
+└──────────────────────────────────────────────────────────┘
+```
+
+Per row, by context menu or the footer: **Transcribe Again** (into the queue), **Show in
+Finder**, **Open <transcript>** for each one found, and **Move to Trash…**, which confirms
+first. Deleting moves the audio to the Trash and leaves the transcripts alone: a model can be
+downloaded again, a conversation cannot (ADR-021). The right-hand column shows the transcript
+formats found for the recording, or "no transcript".
+
+The list is read from the folder each time the window appears, so a file removed in Finder is
+simply gone. It refreshes when a recording finishes.
+
 ## Accessibility and behavioural details
 
 - Every control is reachable by keyboard; progress bars report a percentage to VoiceOver.

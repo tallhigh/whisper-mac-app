@@ -69,12 +69,26 @@ final class LiveSession: @unchecked Sendable {
         enqueue(line)
     }
 
-    /// Ends the stream and waits for the worker to write the final text.
-    func finish() async {
+    /// Tells the worker no more audio is coming. Returns at once.
+    ///
+    /// Split from waiting for the exit on purpose: the worker answers `stop` by transcribing
+    /// whatever audio has not been committed yet, which can take seconds, and nothing in the
+    /// interface should sit still for that (ADR-022).
+    func requestStop() {
         enqueue("{\"v\":\(ProtocolVersion.stream),\"type\":\"stop\"}\n")
         writeQueue.sync {}
         closeInput()
+    }
+
+    /// Waits for the worker to write its final text and exit. Call after `requestStop()`.
+    func awaitExit() async {
         await ProcessRunner.waitForExit(process)
+    }
+
+    /// Ends the stream and waits — `requestStop()` followed by `awaitExit()`.
+    func finish() async {
+        requestStop()
+        await awaitExit()
     }
 
     /// Terminates the session at once; the final text is not waited for.

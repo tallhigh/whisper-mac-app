@@ -30,6 +30,9 @@ final class RecordingController {
     /// Why live transcription couldn't start, if it couldn't. **The recording carries on**:
     /// the real job is to record the audio, the live text is a preview.
     private(set) var liveFailure: String?
+    /// True between `finish()` returning and the worker's last text arriving. The interface
+    /// shows it rather than blocking (ADR-022).
+    private(set) var isFinalizing = false
 
     struct Failure: Equatable, Sendable {
         var message: String
@@ -45,6 +48,8 @@ final class RecordingController {
     private let log: @Sendable (String) -> Void
     private var capture: (any AudioCapturing)?
     private var session: LiveSession?
+    /// The background wait for the stopped worker, awaited by `waitForFinalText()`.
+    private var finalText: Task<Void, Never>?
     private var ticker: Task<Void, Never>?
     private var startedAt: Date?
     private var accumulated: TimeInterval = 0
@@ -180,10 +185,18 @@ final class RecordingController {
         let written = capture.stop()
         self.capture = nil
 
-        // We wait for the worker to write its final text; otherwise the last few seconds
-        // of the recording never make it into the live text.
+        // The worker is told to stop, but **not waited for here**. Answering `stop` means
+        // transcribing whatever is still uncommitted, which during uninterrupted speech can
+        // be most of a 30-second buffer and take seconds — and this call keeps the recording
+        // sheet on screen. The wait moved to `waitForFinalText()`, which the caller does once
+        // the sheet is gone; committed text arriving after this point still reaches
+        // `transcript`, because `apply(_:)` does not check the state (ADR-022).
         if let session {
-            await session.finish()
+            session.requestStop()
+            isFinalizing = true
+            finalText = Task { [session] in
+                await session.awaitExit()
+            }
             self.session = nil
         }
         partialText = ""
@@ -205,6 +218,15 @@ final class RecordingController {
 
         log("recording finished: \(url.lastPathComponent) — \(String(format: "%.1f", written)) s")
         return RecordingResult(url: url, duration: written)
+    }
+
+    /// Waits for the worker's last text, after `finish()` has already returned.
+    ///
+    /// Safe to call when there was no live session, or twice: it clears itself.
+    func waitForFinalText() async {
+        await finalText?.value
+        finalText = nil
+        isFinalizing = false
     }
 
     /// Cancels the recording and deletes the file.

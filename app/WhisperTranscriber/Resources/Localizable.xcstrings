@@ -29,6 +29,9 @@
     "%@ is not a known model." : {
 
     },
+    "%@ is not a recording." : {
+
+    },
     "%@ is not downloaded." : {
 
     },
@@ -95,6 +98,16 @@
     },
     "%lld percent" : {
 
+    },
+    "%lld recordings · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld recordings · %2$@"
+          }
+        }
+      }
     },
     "%lld threads on the efficiency cores. Clearly slower, and barely noticeable while it runs." : {
 
@@ -320,6 +333,9 @@
     "Finish" : {
 
     },
+    "Finishing the live text…" : {
+
+    },
     "Folder" : {
 
     },
@@ -419,6 +435,18 @@
     "Models, output and the runtime environment (⌘,)" : {
 
     },
+    "Move %@ to the Trash?" : {
+
+    },
+    "Move to Trash" : {
+
+    },
+    "Move to Trash…" : {
+
+    },
+    "Move to the Trash?" : {
+
+    },
     "My presets" : {
 
     },
@@ -429,6 +457,9 @@
 
     },
     "No presets saved yet. You can save one from the list in the toolbar." : {
+
+    },
+    "No recordings yet" : {
 
     },
     "No text was produced." : {
@@ -453,6 +484,9 @@
 
     },
     "Only your own voice" : {
+
+    },
+    "Open %@" : {
 
     },
     "Open Log Folder" : {
@@ -494,6 +528,9 @@
     "Presets" : {
 
     },
+    "Press ⇧⌘R in the main window to record one" : {
+
+    },
     "Produce the accurate transcript afterwards" : {
 
     },
@@ -531,6 +568,12 @@
 
     },
     "Recording the manifest" : {
+
+    },
+    "Recordings" : {
+
+    },
+    "Refresh" : {
 
     },
     "Refresh the apps playing audio" : {
@@ -618,6 +661,12 @@
 
     },
     "Setup was cancelled." : {
+
+    },
+    "Show Folder" : {
+
+    },
+    "Show in Finder" : {
 
     },
     "Show the text live while recording" : {
@@ -745,6 +794,9 @@
     "The queue is empty" : {
 
     },
+    "The recording could not be moved to the Trash: %@" : {
+
+    },
     "The recording could not be started." : {
 
     },
@@ -778,6 +830,9 @@
     "The transcription finished but no result arrived." : {
 
     },
+    "The transcripts are kept. You can recover the audio from the Trash." : {
+
+    },
     "The translate task produces English output." : {
 
     },
@@ -797,6 +852,9 @@
 
     },
     "Transcribe" : {
+
+    },
+    "Transcribe Again" : {
 
     },
     "Transcription" : {
@@ -900,6 +958,9 @@
 
     },
     "m4a · mp3 · wav · mp4 and others" : {
+
+    },
+    "no transcript" : {
 
     },
     "not downloaded" : {
